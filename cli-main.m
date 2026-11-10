@@ -27,6 +27,239 @@
 #import "SCBlockFileReaderWriter.h"
 #import <sysexits.h>
 #import "XPMArguments.h"
+#import "SCScheduleUtilities.h"
+
+#pragma mark - schedule subcommand (fork)
+
+static void SCPrintScheduleUsage(void) {
+    printf("Usage: selfcontrol-cli schedule <command> [<args>]\n\n");
+    printf("    list\n");
+    printf("        show all schedules\n\n");
+    printf("    add --days <days> --start <time> --end <time> [--name <name>] [--sites <a.com,b.com> | --blocklist <file>]\n");
+    printf("        days:  mon-fri, weekdays, weekends, daily, sat,sun, fri-mon, ...\n");
+    printf("        times: 09:00, 9:30pm, 23:00. If end <= start, the block runs past midnight.\n");
+    printf("        sites default to your current SelfControl blocklist.\n\n");
+    printf("    remove <id|name>\n");
+    printf("    enable <id|name>\n");
+    printf("    disable <id|name>\n\n");
+    printf("Schedules can't be removed, disabled or shortened while they're active.\n");
+    printf("Changing schedules asks for an administrator password.\n");
+}
+
+static NSString* SCOptionValue(NSArray<NSString*>* args, NSString* name) {
+    NSUInteger idx = [args indexOfObject: name];
+    if (idx == NSNotFound || idx + 1 >= args.count) return nil;
+    return args[idx + 1];
+}
+
+static NSDictionary* SCAppDefaults(void) {
+    NSMutableDictionary* defaults = [SCConstants.defaultUserDefaults mutableCopy];
+    NSDictionary* appDomain = [[NSUserDefaults standardUserDefaults] persistentDomainForName: @"org.eyebeam.SelfControl"];
+    [defaults addEntriesFromDictionary: appDomain ?: @{}];
+    return defaults;
+}
+
+static NSDictionary* SCFindSchedule(NSArray* schedules, NSString* query) {
+    NSMutableArray* matches = [NSMutableArray array];
+    for (NSDictionary* schedule in schedules) {
+        NSString* scheduleID = schedule[SCScheduleKeyID];
+        NSString* name = schedule[SCScheduleKeyName];
+        if ([scheduleID caseInsensitiveCompare: query] == NSOrderedSame) return schedule;
+        if ([[scheduleID lowercaseString] hasPrefix: [query lowercaseString]]
+            || (name != nil && [name caseInsensitiveCompare: query] == NSOrderedSame)) {
+            [matches addObject: schedule];
+        }
+    }
+    if (matches.count == 1) return matches[0];
+    if (matches.count > 1) fprintf(stderr, "\"%s\" matches more than one schedule; use more of the ID.\n", query.UTF8String);
+    else fprintf(stderr, "No schedule matches \"%s\". Run `selfcontrol-cli schedule list`.\n", query.UTF8String);
+    return nil;
+}
+
+// makes sure the daemon is installed, then sends the new schedules (asks for an admin password)
+static int SCPushSchedules(NSArray* schedules) {
+    NSError* validationErr = [SCScheduleUtilities validateSchedules: schedules];
+    if (validationErr == nil) {
+        validationErr = [SCScheduleUtilities validateChangeFromSchedules: [[SCSettings sharedSettings] valueForKey: @"Schedules"]
+                                                             toSchedules: schedules
+                                                                  atDate: [NSDate date]];
+    }
+    if (validationErr != nil) {
+        fprintf(stderr, "Error: %s\n", validationErr.localizedDescription.UTF8String);
+        return EX_DATAERR;
+    }
+
+    SCXPCClient* xpc = [SCXPCClient new];
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    __block int result = EXIT_SUCCESS;
+
+    [xpc ensureDaemonInstalled:^(NSError* installErr) {
+        if (installErr != nil) {
+            if (![SCMiscUtilities errorIsAuthCanceled: installErr]) {
+                fprintf(stderr, "Error: couldn't install the SelfControl helper: %s\n", installErr.localizedDescription.UTF8String);
+            } else {
+                fprintf(stderr, "Cancelled.\n");
+            }
+            result = EX_SOFTWARE;
+            dispatch_semaphore_signal(done);
+            return;
+        }
+        [xpc updateSchedules: schedules reply:^(NSError* updateErr) {
+            if (updateErr != nil) {
+                if ([SCMiscUtilities errorIsAuthCanceled: updateErr]) {
+                    fprintf(stderr, "Cancelled.\n");
+                } else {
+                    fprintf(stderr, "Error: %s\n", updateErr.localizedDescription.UTF8String);
+                }
+                result = EX_SOFTWARE;
+            }
+            dispatch_semaphore_signal(done);
+        }];
+    }];
+
+    while (dispatch_semaphore_wait(done, DISPATCH_TIME_NOW)) {
+        [[NSRunLoop currentRunLoop] runMode: NSDefaultRunLoopMode beforeDate: [NSDate dateWithTimeIntervalSinceNow: 0.05]];
+    }
+    return result;
+}
+
+static void SCPrintSchedules(NSArray* schedules) {
+    if (schedules.count == 0) {
+        printf("No schedules. Add one with `selfcontrol-cli schedule add --days mon-fri --start 9:00 --end 17:00`.\n");
+        return;
+    }
+    NSDate* now = [NSDate date];
+    NSDateFormatter* formatter = [NSDateFormatter new];
+    formatter.dateFormat = @"EEE h:mm a";
+    printf("%-9s %-9s %-26s %-34s %-6s %s\n", "ID", "STATUS", "DAYS", "TIME", "SITES", "NAME");
+    for (NSDictionary* schedule in schedules) {
+        NSString* status;
+        NSDate* activeEnd = [SCScheduleUtilities activeWindowEndForSchedule: schedule atDate: now];
+        if (![schedule[SCScheduleKeyEnabled] boolValue]) {
+            status = @"off";
+        } else if (activeEnd != nil) {
+            status = @"ACTIVE";
+        } else {
+            status = @"on";
+        }
+        NSString* note = @"";
+        if (activeEnd != nil) {
+            note = [NSString stringWithFormat: @"  (until %@)", [formatter stringFromDate: activeEnd]];
+        } else {
+            NSDate* next = [SCScheduleUtilities nextWindowStartForSchedule: schedule afterDate: now];
+            if (next != nil) note = [NSString stringWithFormat: @"  (next %@)", [formatter stringFromDate: next]];
+        }
+        printf("%-9s %-9s %-26s %-34s %-6lu %s%s\n",
+               [[schedule[SCScheduleKeyID] substringToIndex: 8] lowercaseString].UTF8String,
+               status.UTF8String,
+               [SCScheduleUtilities daysDescriptionForSchedule: schedule].UTF8String,
+               [SCScheduleUtilities timeDescriptionForSchedule: schedule].UTF8String,
+               (unsigned long)[schedule[SCScheduleKeyBlocklist] count],
+               [schedule[SCScheduleKeyName] ?: @"" UTF8String],
+               note.UTF8String);
+    }
+}
+
+static int SCRunScheduleCommand(NSArray<NSString*>* args) {
+    NSString* command = args.count > 0 ? args[0] : @"list";
+    NSArray* schedules = [[SCSettings sharedSettings] valueForKey: @"Schedules"];
+    if (![schedules isKindOfClass: [NSArray class]]) schedules = @[];
+
+    if ([command isEqualToString: @"list"]) {
+        SCPrintSchedules(schedules);
+        return EXIT_SUCCESS;
+    }
+
+    if ([command isEqualToString: @"add"]) {
+        NSString* daysArg = SCOptionValue(args, @"--days");
+        NSString* startArg = SCOptionValue(args, @"--start");
+        NSString* endArg = SCOptionValue(args, @"--end");
+        if (daysArg == nil || startArg == nil || endArg == nil) {
+            SCPrintScheduleUsage();
+            return EX_USAGE;
+        }
+        NSArray<NSNumber*>* weekdays = [SCScheduleUtilities weekdaysFromString: daysArg];
+        if (weekdays == nil) {
+            fprintf(stderr, "Error: couldn't understand days \"%s\" (try mon-fri, weekends, daily, sat,sun).\n", daysArg.UTF8String);
+            return EX_USAGE;
+        }
+        NSInteger startMinute = [SCScheduleUtilities minuteFromTimeString: startArg];
+        NSInteger endMinute = [SCScheduleUtilities minuteFromTimeString: endArg];
+        if (startMinute < 0 || endMinute < 0) {
+            fprintf(stderr, "Error: couldn't understand the start or end time (try 09:00 or 9:30pm).\n");
+            return EX_USAGE;
+        }
+
+        NSDictionary* appDefaults = SCAppDefaults();
+        NSArray* blocklist;
+        NSString* sitesArg = SCOptionValue(args, @"--sites");
+        NSString* blocklistPath = SCOptionValue(args, @"--blocklist");
+        if (sitesArg != nil) {
+            blocklist = [sitesArg componentsSeparatedByString: @","];
+        } else if (blocklistPath != nil) {
+            NSDictionary* fileContents = [SCBlockFileReaderWriter readBlocklistFromFile: [NSURL fileURLWithPath: blocklistPath]];
+            if (fileContents == nil) {
+                fprintf(stderr, "Error: couldn't read blocklist file %s\n", blocklistPath.UTF8String);
+                return EX_NOINPUT;
+            }
+            blocklist = fileContents[@"Blocklist"];
+        } else {
+            blocklist = appDefaults[@"Blocklist"];
+        }
+        blocklist = [SCMiscUtilities cleanBlocklist: blocklist ?: @[]];
+
+        NSMutableDictionary* blockSettings = [NSMutableDictionary dictionary];
+        for (NSString* key in @[@"ClearCaches", @"AllowLocalNetworks", @"EvaluateCommonSubdomains", @"IncludeLinkedDomains", @"BlockSoundShouldPlay", @"BlockSound", @"EnableErrorReporting"]) {
+            if (appDefaults[key] != nil) blockSettings[key] = appDefaults[key];
+        }
+
+        NSDictionary* schedule = [SCScheduleUtilities scheduleWithName: SCOptionValue(args, @"--name")
+                                                              weekdays: weekdays
+                                                           startMinute: startMinute
+                                                             endMinute: endMinute
+                                                             blocklist: blocklist
+                                                         blockSettings: blockSettings];
+        int result = SCPushSchedules([schedules arrayByAddingObject: schedule]);
+        if (result == EXIT_SUCCESS) {
+            printf("Added: %s, %lu sites\n", [SCScheduleUtilities displayNameForSchedule: schedule].UTF8String, (unsigned long)blocklist.count);
+        }
+        return result;
+    }
+
+    if ([@[@"remove", @"enable", @"disable"] containsObject: command]) {
+        if (args.count < 2) {
+            SCPrintScheduleUsage();
+            return EX_USAGE;
+        }
+        NSDictionary* target = SCFindSchedule(schedules, args[1]);
+        if (target == nil) return EX_DATAERR;
+
+        NSMutableArray* updated = [NSMutableArray array];
+        for (NSDictionary* schedule in schedules) {
+            if (schedule != target) {
+                [updated addObject: schedule];
+            } else if (![command isEqualToString: @"remove"]) {
+                NSMutableDictionary* changed = [schedule mutableCopy];
+                changed[SCScheduleKeyEnabled] = @([command isEqualToString: @"enable"]);
+                [updated addObject: changed];
+            }
+        }
+        int result = SCPushSchedules(updated);
+        if (result == EXIT_SUCCESS) {
+            NSString* verb = [command isEqualToString: @"remove"] ? @"Removed" : ([command isEqualToString: @"enable"] ? @"Enabled" : @"Disabled");
+            printf("%s: %s\n", verb.UTF8String, [SCScheduleUtilities displayNameForSchedule: target].UTF8String);
+        }
+        return result;
+    }
+
+    if ([@[@"help", @"--help", @"-h"] containsObject: command]) {
+        SCPrintScheduleUsage();
+        return EXIT_SUCCESS;
+    }
+
+    SCPrintScheduleUsage();
+    return EX_USAGE;
+}
 
 // The main method which deals which most of the logic flow and execution of
 // the CLI tool.
@@ -34,6 +267,13 @@ int main(int argc, char* argv[]) {
     [SCSentry startSentry: @"org.eyebeam.selfcontrol-cli"];
 
     @autoreleasepool {
+        // fork: `selfcontrol-cli schedule ...` is handled separately from the legacy argument parser
+        if (argc >= 2 && strcmp(argv[1], "schedule") == 0) {
+            NSMutableArray<NSString*>* scheduleArgs = [NSMutableArray array];
+            for (int i = 2; i < argc; i++) [scheduleArgs addObject: @(argv[i])];
+            exit(SCRunScheduleCommand(scheduleArgs));
+        }
+
         XPMArgumentSignature
           * controllingUIDSig = [XPMArgumentSignature argumentSignatureWithFormat:@"[--uid]="],
           * startSig = [XPMArgumentSignature argumentSignatureWithFormat:@"[start --start --install]"],
@@ -245,6 +485,8 @@ int main(int argc, char* argv[]) {
             printf("\n    is-running --> prints YES if a SelfControl block is currently running, or NO otherwise\n");
             printf("\n    print-settings --> prints the SelfControl settings being used for the active block (for debug purposes)\n");
             printf("\n    version --> prints the version of the SelfControl CLI tool\n");
+            printf("\n    schedule --> list, add, remove, enable or disable recurring scheduled blocks\n");
+            printf("        (run `selfcontrol-cli schedule help` for details)\n");
             printf("\n");
             printf("--uid argument MUST be specified and set to the controlling user ID if selfcontrol-cli is being run as root. Otherwise, it does not need to be set.\n\n");
             printf("Example start command: selfcontrol-cli start --blocklist /path/to/blocklist.selfcontrol --enddate 2021-02-12T06:53:00Z\n");

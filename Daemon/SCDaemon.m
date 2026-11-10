@@ -10,9 +10,11 @@
 #import "SCDaemonXPC.h"
 #import"SCDaemonBlockMethods.h"
 #import "SCFileWatcher.h"
+#import "SCScheduleUtilities.h"
 
 static NSString* serviceName = @"org.eyebeam.selfcontrold";
 float const INACTIVITY_LIMIT_SECS = 60 * 2; // 2 minutes
+NSTimeInterval const SCHEDULE_CHECK_INTERVAL_SECS = 15.0;
 
 @interface NSXPCConnection(PrivateAuditToken)
 
@@ -26,6 +28,8 @@ float const INACTIVITY_LIMIT_SECS = 60 * 2; // 2 minutes
 @property (nonatomic, strong, readwrite) NSXPCListener* listener;
 @property (strong, readwrite) NSTimer* checkupTimer;
 @property (strong, readwrite) NSTimer* inactivityTimer;
+@property (strong, readwrite) NSTimer* scheduleTimer;
+@property (nonatomic, strong) dispatch_queue_t scheduleQueue;
 @property (nonatomic, strong, readwrite) NSDate* lastActivityDate;
 
 @property (nonatomic, strong) SCFileWatcher* hostsFileWatcher;
@@ -46,6 +50,7 @@ float const INACTIVITY_LIMIT_SECS = 60 * 2; // 2 minutes
 - (id) init {
     _listener = [[NSXPCListener alloc] initWithMachServiceName: serviceName];
     _listener.delegate = self;
+    _scheduleQueue = dispatch_queue_create("org.eyebeam.selfcontrold.schedules", DISPATCH_QUEUE_SERIAL);
     
     return self;
 }
@@ -66,6 +71,14 @@ float const INACTIVITY_LIMIT_SECS = 60 * 2; // 2 minutes
     
     [self startInactivityTimer];
     [self resetInactivityTimer];
+
+    // fork: check recurring schedules regularly (and once right away, e.g. at boot or after a crash).
+    // NSTimer catches up after sleep, so a window that started while asleep kicks in on wake.
+    self.scheduleTimer = [NSTimer scheduledTimerWithTimeInterval: SCHEDULE_CHECK_INTERVAL_SECS repeats: YES block:^(NSTimer * _Nonnull timer) {
+        [self checkSchedulesSoon];
+    }];
+    self.scheduleTimer.tolerance = 2.0;
+    [self checkSchedulesSoon];
     
     self.hostsFileWatcher = [SCFileWatcher watcherWithFile: @"/etc/hosts" block:^(NSError * _Nonnull error) {
         if ([SCBlockUtilities anyBlockIsRunning]) {
@@ -119,11 +132,23 @@ float const INACTIVITY_LIMIT_SECS = 60 * 2; // 2 minutes
                 return;
             }
             
+            // fork: stay alive while any schedule is enabled, so scheduled blocks can start on time
+            if ([SCScheduleUtilities anyEnabledSchedules: [[SCSettings sharedSettings] valueForKey: @"Schedules"]]) {
+                return;
+            }
+
             NSLog(@"Daemon inactive for more than %f seconds, exiting!", INACTIVITY_LIMIT_SECS);
             [SCHelperToolUtilities unloadDaemonJob];
         }
     }];
 }
+
+- (void)checkSchedulesSoon {
+    dispatch_async(self.scheduleQueue, ^{
+        [SCDaemonBlockMethods checkSchedules];
+    });
+}
+
 - (void)resetInactivityTimer {
     self.lastActivityDate = [NSDate date];
 }
@@ -159,7 +184,7 @@ float const INACTIVITY_LIMIT_SECS = 60 * 2; // 2 minutes
     SecRequirementRef isSelfControlApp;
     // versions before 4.0 didn't have hardened code signing, so aren't trustworthy to talk to the daemon
     // (plus the daemon didn't exist before 4.0 so there's really no reason they should want to run it!)
-    SecRequirementCreateWithString(CFSTR("anchor apple generic and (identifier \"org.eyebeam.SelfControl\" or identifier \"org.eyebeam.selfcontrol-cli\") and info [CFBundleVersion] >= \"407\" and (certificate leaf[field.1.2.840.113635.100.6.1.9] /* exists */ or certificate 1[field.1.2.840.113635.100.6.2.6] /* exists */ and certificate leaf[field.1.2.840.113635.100.6.1.13] /* exists */ and certificate leaf[subject.OU] = EG6ZYP3AQH)"), kSecCSDefaultFlags, &isSelfControlApp);
+    SecRequirementCreateWithString(CFSTR("anchor apple generic and (identifier \"org.eyebeam.SelfControl\" or identifier \"org.eyebeam.selfcontrol-cli\") and info [CFBundleVersion] >= \"407\" and certificate leaf[subject.OU] = ST2ZP3Y3L5"), kSecCSDefaultFlags, &isSelfControlApp);
     OSStatus clientValidityStatus = SecCodeCheckValidity(guest, kSecCSDefaultFlags, isSelfControlApp);
     
     CFRelease(guest);

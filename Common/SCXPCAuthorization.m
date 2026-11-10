@@ -108,10 +108,20 @@ static NSDictionary* kAuthorizationRuleAuthenticateAsAdmin2MinTimeout;
             )
         };
         
+        NSDictionary* updateSchedulesCommandInfo = @{
+            kCommandKeyAuthRightName    : @"org.eyebeam.SelfControl.updateSchedules",
+            kCommandKeyAuthRightDefault : kAuthorizationRuleAuthenticateAsAdmin2MinTimeout,
+            kCommandKeyAuthRightDesc    : NSLocalizedString(
+                @"SelfControl needs your username and password to change your block schedules.",
+                @"prompt shown when user is required to authorize to change block schedules"
+            )
+        };
+
         sCommandInfo = @{
             NSStringFromSelector(@selector(startBlockWithControllingUID:blocklist:isAllowlist:endDate:blockSettings:authorization:reply:)) : startBlockCommandInfo,
             NSStringFromSelector(@selector(updateBlocklist:authorization:reply:)) : modifyBlockCommandInfo,
-            NSStringFromSelector(@selector(updateBlockEndDate:authorization:reply:)) : modifyBlockCommandInfo
+            NSStringFromSelector(@selector(updateBlockEndDate:authorization:reply:)) : modifyBlockCommandInfo,
+            NSStringFromSelector(@selector(updateSchedules:authorization:reply:)) : updateSchedulesCommandInfo
             #pragma clang diagnostic pop
         };
     });

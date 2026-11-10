@@ -7,11 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3B9F2A6858979EF03A280794 /* ScheduleWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = F901DD792F29E860E36A07FB /* ScheduleWindowController.m */; };
 		5E6BEEBB5C6E29DADDB344CF /* libPods-selfcontrol-cli.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C85A094F15E20A0DB58665A8 /* libPods-selfcontrol-cli.a */; };
 		63BAC9E58A69B15D342B0E29 /* libPods-org.eyebeam.selfcontrold.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 8BF3973D41997900DF147B24 /* libPods-org.eyebeam.selfcontrold.a */; };
 		8CA8987104D2956493D6AF6B /* Pods_SelfControl_SelfControlTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F41DEF1E3926B4CF3AE2B76C /* Pods_SelfControl_SelfControlTests.framework */; };
 		8D11072D0486CEB800E47090 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 29B97316FDCFA39411CA2CEA /* main.m */; settings = {ATTRIBUTES = (); }; };
 		8D11072F0486CEB800E47090 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */; };
+		C6BD9724379E42B7AADBB0E4 /* SCScheduleUtilities.m in Sources */ = {isa = PBXBuildFile; fileRef = 068377730ED87C2C8186E748 /* SCScheduleUtilities.m */; };
 		CB0385E119D77051004614B6 /* PreferencesAdvancedViewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = CB0385DD19D77051004614B6 /* PreferencesAdvancedViewController.xib */; };
 		CB0385E219D77051004614B6 /* PreferencesGeneralViewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = CB0385DF19D77051004614B6 /* PreferencesGeneralViewController.xib */; };
 		CB066F6C2652037E0076964D /* HostFileBlocker.m in Sources */ = {isa = PBXBuildFile; fileRef = CBB0AE290FA74566006229B3 /* HostFileBlocker.m */; };
@@ -209,7 +211,9 @@
 		D4EDD26C770910569C31D36F /* libPods-SCKillerHelper.a in Frameworks */ = {isa = PBXBuildFile; fileRef = AF899A50A17F0C6C8C6B84A2 /* libPods-SCKillerHelper.a */; };
 		DC4DBA9148D8D67A11899C5E /* Pods_SelfControl.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6EBDE7B29D92764A409E4FDA /* Pods_SelfControl.framework */; };
 		E263B809965135813A557CD5 /* Pods_SelfControl_Killer.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 86DAD6532C67CBE72E99084C /* Pods_SelfControl_Killer.framework */; };
+		F22A2CD92A2D34BE551138A2 /* SCScheduleUtilities.m in Sources */ = {isa = PBXBuildFile; fileRef = 068377730ED87C2C8186E748 /* SCScheduleUtilities.m */; };
 		F5B8CBEE19EE21C30026F3A5 /* SCTimeIntervalFormatter.m in Sources */ = {isa = PBXBuildFile; fileRef = F5B8CBED19EE21C30026F3A5 /* SCTimeIntervalFormatter.m */; };
+		FBC96D76E3D1F5B9AE6F8261 /* SCScheduleUtilities.m in Sources */ = {isa = PBXBuildFile; fileRef = 068377730ED87C2C8186E748 /* SCScheduleUtilities.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -523,6 +527,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		068377730ED87C2C8186E748 /* SCScheduleUtilities.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = SCScheduleUtilities.m; sourceTree = "<group>"; };
 		1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = /System/Library/Frameworks/Cocoa.framework; sourceTree = "<absolute>"; };
 		29B97316FDCFA39411CA2CEA /* main.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		29B97324FDCFA39411CA2CEA /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = /System/Library/Frameworks/AppKit.framework; sourceTree = "<absolute>"; };
@@ -546,8 +551,10 @@
 		949F9F8815B32EC6007B8B42 /* zh-Hans */ = {isa = PBXFileReference; fileEncoding = 10; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		949F9F8D15B333A1007B8B42 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		AF899A50A17F0C6C8C6B84A2 /* libPods-SCKillerHelper.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-SCKillerHelper.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		BE0A4FD39A93F4A3C6FBE68F /* SCScheduleUtilities.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = SCScheduleUtilities.h; sourceTree = "<group>"; };
 		C72025F2499F9F07E281CB50 /* Pods-SelfControl-SelfControlTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SelfControl-SelfControlTests.release.xcconfig"; path = "Pods/Target Support Files/Pods-SelfControl-SelfControlTests/Pods-SelfControl-SelfControlTests.release.xcconfig"; sourceTree = "<group>"; };
 		C85A094F15E20A0DB58665A8 /* libPods-selfcontrol-cli.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-selfcontrol-cli.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		CA50F569D374B385DF9FAB8F /* ScheduleWindowController.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = ScheduleWindowController.h; sourceTree = "<group>"; };
 		CB0EEF5D20FD8CE00024D27B /* SelfControlTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SelfControlTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CB0EEF6120FD8CE00024D27B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		CB0EEF7720FE49020024D27B /* SCUtilityTests.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SCUtilityTests.m; sourceTree = "<group>"; };
@@ -1471,6 +1478,7 @@
 		F41DEF1E3926B4CF3AE2B76C /* Pods_SelfControl_SelfControlTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_SelfControl_SelfControlTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		F5B8CBEC19EE21C30026F3A5 /* SCTimeIntervalFormatter.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SCTimeIntervalFormatter.h; sourceTree = "<group>"; };
 		F5B8CBED19EE21C30026F3A5 /* SCTimeIntervalFormatter.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SCTimeIntervalFormatter.m; sourceTree = "<group>"; };
+		F901DD792F29E860E36A07FB /* ScheduleWindowController.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = ScheduleWindowController.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1580,7 +1588,7 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		29B97314FDCFA39411CA2CEA /* SelfControl */ = {
+		29B97314FDCFA39411CA2CEA = {
 			isa = PBXGroup;
 			children = (
 				CBDFFF4B24A07DB300622CEE /* SelfControl.entitlements */,
@@ -1603,6 +1611,8 @@
 				CBB67D3225D6165B006E4BC9 /* ArgumentParser */,
 				CBB60BE41F13441F00DCB597 /* Distribution Build */,
 				DDDC709FF9E9196A96CA7BCF /* Pods */,
+				CA50F569D374B385DF9FAB8F /* ScheduleWindowController.h */,
+				F901DD792F29E860E36A07FB /* ScheduleWindowController.m */,
 			);
 			name = SelfControl;
 			sourceTree = "<group>";
@@ -1758,6 +1768,8 @@
 				CBB1731320F041F4007FCAE9 /* SCMiscUtilities.m */,
 				CB81AA3825B7D152006956F7 /* SCHelperToolUtilities.h */,
 				CB81AA3925B7D152006956F7 /* SCHelperToolUtilities.m */,
+				BE0A4FD39A93F4A3C6FBE68F /* SCScheduleUtilities.h */,
+				068377730ED87C2C8186E748 /* SCScheduleUtilities.m */,
 			);
 			path = Utility;
 			sourceTree = "<group>";
@@ -2913,7 +2925,7 @@
 				CBDFFF4624A044C900622CEE /* Copy Daemon Launch Service */,
 				CB5E5FF81C3A5FD10038F331 /* ShellScript */,
 				CB81AB2725B7EFA4006956F7 /* Embed Frameworks */,
-				BED0609C15A860C955A3552D /* [CP] Embed Pods Frameworks */,
+				D866E126D61A88EB71405D24 /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
@@ -2934,7 +2946,7 @@
 				CB0EEF5920FD8CE00024D27B /* Sources */,
 				CB0EEF5A20FD8CE00024D27B /* Frameworks */,
 				CB0EEF5B20FD8CE00024D27B /* Resources */,
-				ED887BF54A55A00F42A6FD9C /* [CP] Embed Pods Frameworks */,
+				6A09EDA1979FBA2D050B72BD /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
@@ -2973,7 +2985,6 @@
 				CB9C80F419CFB79700CDCAE1 /* Frameworks */,
 				CB9C80F519CFB79700CDCAE1 /* Resources */,
 				CB9C813119CFBBD300CDCAE1 /* Copy Helper Tools */,
-				AF328C5935C794FB31FCD1B5 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -3028,7 +3039,7 @@
 				LastUpgradeCheck = 0930;
 				TargetAttributes = {
 					8D1107260486CEB800E47090 = {
-						DevelopmentTeam = EG6ZYP3AQH;
+						DevelopmentTeam = ST2ZP3Y3L5;
 						LastSwiftMigration = 1150;
 						ProvisioningStyle = Manual;
 						SystemCapabilities = {
@@ -3039,25 +3050,25 @@
 					};
 					CB0EEF5C20FD8CE00024D27B = {
 						CreatedOnToolsVersion = 9.4.1;
-						DevelopmentTeam = EG6ZYP3AQH;
+						DevelopmentTeam = ST2ZP3Y3L5;
 						ProvisioningStyle = Automatic;
 					};
 					CB74D1052480E506002B2079 = {
-						DevelopmentTeam = EG6ZYP3AQH;
+						DevelopmentTeam = ST2ZP3Y3L5;
 						ProvisioningStyle = Manual;
 					};
 					CB9C80F619CFB79700CDCAE1 = {
 						CreatedOnToolsVersion = 6.0.1;
-						DevelopmentTeam = EG6ZYP3AQH;
+						DevelopmentTeam = ST2ZP3Y3L5;
 						ProvisioningStyle = Automatic;
 					};
 					CB9C811A19CFBA8500CDCAE1 = {
 						CreatedOnToolsVersion = 6.0.1;
-						DevelopmentTeam = EG6ZYP3AQH;
+						DevelopmentTeam = ST2ZP3Y3L5;
 						ProvisioningStyle = Manual;
 					};
 					CBA2AFD10F39EC12005AFEBE = {
-						DevelopmentTeam = EG6ZYP3AQH;
+						DevelopmentTeam = ST2ZP3Y3L5;
 						ProvisioningStyle = Manual;
 					};
 				};
@@ -3083,7 +3094,7 @@
 				Base,
 				da,
 			);
-			mainGroup = 29B97314FDCFA39411CA2CEA /* SelfControl */;
+			mainGroup = 29B97314FDCFA39411CA2CEA;
 			productRefGroup = 19C28FACFE9D520D11CA2CBB /* Products */;
 			projectDirPath = "";
 			projectReferences = (
@@ -3514,48 +3525,78 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		AF328C5935C794FB31FCD1B5 /* [CP] Embed Pods Frameworks */ = {
+		6A09EDA1979FBA2D050B72BD /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-SelfControl Killer/Pods-SelfControl Killer-frameworks.sh",
-				"${BUILT_PRODUCTS_DIR}/Sentry-framework/Sentry.framework",
+				"${PODS_ROOT}/Target Support Files/Pods-SelfControl-SelfControlTests/Pods-SelfControl-SelfControlTests-resources.sh",
+				"${PODS_ROOT}/FormatterKit/FormatterKit/FormatterKit.bundle",
+				"${PODS_ROOT}/LetsMove/Base.lproj",
+				"${PODS_ROOT}/LetsMove/ca.lproj",
+				"${PODS_ROOT}/LetsMove/cs.lproj",
+				"${PODS_ROOT}/LetsMove/da.lproj",
+				"${PODS_ROOT}/LetsMove/de.lproj",
+				"${PODS_ROOT}/LetsMove/el.lproj",
+				"${PODS_ROOT}/LetsMove/en.lproj",
+				"${PODS_ROOT}/LetsMove/es.lproj",
+				"${PODS_ROOT}/LetsMove/fr.lproj",
+				"${PODS_ROOT}/LetsMove/hu.lproj",
+				"${PODS_ROOT}/LetsMove/it.lproj",
+				"${PODS_ROOT}/LetsMove/ja.lproj",
+				"${PODS_ROOT}/LetsMove/ko.lproj",
+				"${PODS_ROOT}/LetsMove/mk.lproj",
+				"${PODS_ROOT}/LetsMove/nb.lproj",
+				"${PODS_ROOT}/LetsMove/nl.lproj",
+				"${PODS_ROOT}/LetsMove/pl.lproj",
+				"${PODS_ROOT}/LetsMove/pt.lproj",
+				"${PODS_ROOT}/LetsMove/pt_BR.lproj",
+				"${PODS_ROOT}/LetsMove/ru.lproj",
+				"${PODS_ROOT}/LetsMove/sk.lproj",
+				"${PODS_ROOT}/LetsMove/sr.lproj",
+				"${PODS_ROOT}/LetsMove/sv.lproj",
+				"${PODS_ROOT}/LetsMove/tr.lproj",
+				"${PODS_ROOT}/LetsMove/vi-VN.lproj",
+				"${PODS_ROOT}/LetsMove/zh_CN.lproj",
+				"${PODS_ROOT}/LetsMove/zh_TW.lproj",
+				"${BUILT_PRODUCTS_DIR}/MASPreferences/MASPreferences.framework/en.lproj/MASPreferencesWindow.nib",
 			);
-			name = "[CP] Embed Pods Frameworks";
+			name = "[CP] Copy Pods Resources";
 			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/Sentry.framework",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/FormatterKit.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/Base.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ca.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/cs.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/da.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/de.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/el.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/en.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/es.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/fr.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/hu.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/it.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ja.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ko.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/mk.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/nb.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/nl.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/pl.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/pt.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/pt_BR.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ru.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/sk.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/sr.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/sv.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/tr.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/vi-VN.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/zh_CN.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/zh_TW.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/MASPreferencesWindow.nib",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-SelfControl Killer/Pods-SelfControl Killer-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		BED0609C15A860C955A3552D /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-SelfControl/Pods-SelfControl-frameworks.sh",
-				"${BUILT_PRODUCTS_DIR}/FormatterKit/FormatterKit.framework",
-				"${BUILT_PRODUCTS_DIR}/LetsMove/LetsMove.framework",
-				"${BUILT_PRODUCTS_DIR}/MASPreferences/MASPreferences.framework",
-				"${BUILT_PRODUCTS_DIR}/Sentry-framework/Sentry.framework",
-				"${BUILT_PRODUCTS_DIR}/TransformerKit/TransformerKit.framework",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/FormatterKit.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/LetsMove.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/MASPreferences.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/Sentry.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/TransformerKit.framework",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-SelfControl/Pods-SelfControl-frameworks.sh\"\n";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-SelfControl-SelfControlTests/Pods-SelfControl-SelfControlTests-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 		C4455A3F0260679D1BD5962E /* [CP] Check Pods Manifest.lock */ = {
@@ -3595,7 +3636,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# buildNumber=$(xcodebuild -project SelfControl.xcodeproj/ -showBuildSettings | grep \"CURRENT_PROJECT_VERSION\" | sed 's/[ ]*CURRENT_PROJECT_VERSION = //')\necho \"#define SELFCONTROL_VERSION_STRING @\\\"${MARKETING_VERSION}\\\"\" > \"${PROJECT_DIR}/version-header.h\"\n";
+			shellScript = "# buildNumber=$(xcodebuild -project SelfControl.xcodeproj/ -showBuildSettings | grep \"CURRENT_PROJECT_VERSION\" | sed 's/[ ]*CURRENT_PROJECT_VERSION = //')\n# fork: only rewrite when changed, so the precompiled header is not invalidated mid-build\nline=\"#define SELFCONTROL_VERSION_STRING @\\\"${MARKETING_VERSION}\\\"\"\nf=\"${PROJECT_DIR}/version-header.h\"\n[ \"$(cat \"$f\" 2>/dev/null)\" = \"$line\" ] || echo \"$line\" > \"$f\"\n";
 		};
 		CB5E5FF81C3A5FD10038F331 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -3625,7 +3666,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "echo \"#define SELFCONTROL_VERSION_STRING @\\\"${MARKETING_VERSION}\\\"\" > \"${PROJECT_DIR}/version-header.h\"\n";
+			shellScript = "# fork: only rewrite when changed, so the precompiled header is not invalidated mid-build\nline=\"#define SELFCONTROL_VERSION_STRING @\\\"${MARKETING_VERSION}\\\"\"\nf=\"${PROJECT_DIR}/version-header.h\"\n[ \"$(cat \"$f\" 2>/dev/null)\" = \"$line\" ] || echo \"$line\" > \"$f\"\n";
 		};
 		CB81A92E25B7B4B8006956F7 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -3642,7 +3683,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\necho \"#define SELFCONTROL_VERSION_STRING @\\\"${MARKETING_VERSION}\\\"\" > \"${PROJECT_DIR}/version-header.h\"\n";
+			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\n# fork: only rewrite when changed, so the precompiled header is not invalidated mid-build\nline=\"#define SELFCONTROL_VERSION_STRING @\\\"${MARKETING_VERSION}\\\"\"\nf=\"${PROJECT_DIR}/version-header.h\"\n[ \"$(cat \"$f\" 2>/dev/null)\" = \"$line\" ] || echo \"$line\" > \"$f\"\n";
 		};
 		D76E3B7390CC3DD10C32CD7F /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -3666,30 +3707,78 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		ED887BF54A55A00F42A6FD9C /* [CP] Embed Pods Frameworks */ = {
+		D866E126D61A88EB71405D24 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-SelfControl-SelfControlTests/Pods-SelfControl-SelfControlTests-frameworks.sh",
-				"${BUILT_PRODUCTS_DIR}/FormatterKit/FormatterKit.framework",
-				"${BUILT_PRODUCTS_DIR}/LetsMove/LetsMove.framework",
-				"${BUILT_PRODUCTS_DIR}/MASPreferences/MASPreferences.framework",
-				"${BUILT_PRODUCTS_DIR}/Sentry-framework/Sentry.framework",
-				"${BUILT_PRODUCTS_DIR}/TransformerKit/TransformerKit.framework",
+				"${PODS_ROOT}/Target Support Files/Pods-SelfControl/Pods-SelfControl-resources.sh",
+				"${PODS_ROOT}/FormatterKit/FormatterKit/FormatterKit.bundle",
+				"${PODS_ROOT}/LetsMove/Base.lproj",
+				"${PODS_ROOT}/LetsMove/ca.lproj",
+				"${PODS_ROOT}/LetsMove/cs.lproj",
+				"${PODS_ROOT}/LetsMove/da.lproj",
+				"${PODS_ROOT}/LetsMove/de.lproj",
+				"${PODS_ROOT}/LetsMove/el.lproj",
+				"${PODS_ROOT}/LetsMove/en.lproj",
+				"${PODS_ROOT}/LetsMove/es.lproj",
+				"${PODS_ROOT}/LetsMove/fr.lproj",
+				"${PODS_ROOT}/LetsMove/hu.lproj",
+				"${PODS_ROOT}/LetsMove/it.lproj",
+				"${PODS_ROOT}/LetsMove/ja.lproj",
+				"${PODS_ROOT}/LetsMove/ko.lproj",
+				"${PODS_ROOT}/LetsMove/mk.lproj",
+				"${PODS_ROOT}/LetsMove/nb.lproj",
+				"${PODS_ROOT}/LetsMove/nl.lproj",
+				"${PODS_ROOT}/LetsMove/pl.lproj",
+				"${PODS_ROOT}/LetsMove/pt.lproj",
+				"${PODS_ROOT}/LetsMove/pt_BR.lproj",
+				"${PODS_ROOT}/LetsMove/ru.lproj",
+				"${PODS_ROOT}/LetsMove/sk.lproj",
+				"${PODS_ROOT}/LetsMove/sr.lproj",
+				"${PODS_ROOT}/LetsMove/sv.lproj",
+				"${PODS_ROOT}/LetsMove/tr.lproj",
+				"${PODS_ROOT}/LetsMove/vi-VN.lproj",
+				"${PODS_ROOT}/LetsMove/zh_CN.lproj",
+				"${PODS_ROOT}/LetsMove/zh_TW.lproj",
+				"${BUILT_PRODUCTS_DIR}/MASPreferences/MASPreferences.framework/en.lproj/MASPreferencesWindow.nib",
 			);
-			name = "[CP] Embed Pods Frameworks";
+			name = "[CP] Copy Pods Resources";
 			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/FormatterKit.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/LetsMove.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/MASPreferences.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/Sentry.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/TransformerKit.framework",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/FormatterKit.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/Base.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ca.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/cs.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/da.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/de.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/el.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/en.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/es.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/fr.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/hu.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/it.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ja.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ko.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/mk.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/nb.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/nl.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/pl.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/pt.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/pt_BR.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ru.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/sk.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/sr.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/sv.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/tr.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/vi-VN.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/zh_CN.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/zh_TW.lproj",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/MASPreferencesWindow.nib",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-SelfControl-SelfControlTests/Pods-SelfControl-SelfControlTests-frameworks.sh\"\n";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-SelfControl/Pods-SelfControl-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
@@ -3727,6 +3816,8 @@
 				CB953114262BC64F000C8309 /* SCDurationSlider.m in Sources */,
 				CBF3B574217BADD7006D5F52 /* SCSettings.m in Sources */,
 				CB25806616C237F10059C99A /* NSString+IPAddress.m in Sources */,
+				FBC96D76E3D1F5B9AE6F8261 /* SCScheduleUtilities.m in Sources */,
+				3B9F2A6858979EF03A280794 /* ScheduleWindowController.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3784,6 +3875,7 @@
 				CB69C4EF25A3FD8A0030CFCD /* SCXPCAuthorization.m in Sources */,
 				CB62FC4324B1329500ADBC40 /* PacketFilter.m in Sources */,
 				CB62FC4224B1329200ADBC40 /* BlockManager.m in Sources */,
+				C6BD9724379E42B7AADBB0E4 /* SCScheduleUtilities.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3877,6 +3969,7 @@
 				CB25806716C237F10059C99A /* NSString+IPAddress.m in Sources */,
 				CB1465B925B027E700130D2E /* SCErr.m in Sources */,
 				CBB1731520F041F4007FCAE9 /* SCMiscUtilities.m in Sources */,
+				F22A2CD92A2D34BE551138A2 /* SCScheduleUtilities.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -4056,10 +4149,10 @@
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
-				CODE_SIGN_IDENTITY = "Developer ID Application: Charles Stigler (EG6ZYP3AQH)";
+				CODE_SIGN_IDENTITY = "Apple Development";
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 410;
+				CURRENT_PROJECT_VERSION = 411;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -4089,9 +4182,9 @@
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
-				CODE_SIGN_IDENTITY = "Developer ID Application: Charles Stigler (EG6ZYP3AQH)";
+				CODE_SIGN_IDENTITY = "Apple Development";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 410;
+				CURRENT_PROJECT_VERSION = 411;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -4139,7 +4232,7 @@
 				CODE_SIGN_IDENTITY = "Mac Developer";
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = EG6ZYP3AQH;
+				DEVELOPMENT_TEAM = ST2ZP3Y3L5;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -4153,8 +4246,8 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.10;
-				MARKETING_VERSION = 4.0.2;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MARKETING_VERSION = 4.1.0;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_CODE_SIGN_FLAGS = "-o library,hard,kill,runtime";
 				SDKROOT = macosx;
@@ -4189,7 +4282,7 @@
 				CODE_SIGN_IDENTITY = "Mac Developer";
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = EG6ZYP3AQH;
+				DEVELOPMENT_TEAM = ST2ZP3Y3L5;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -4201,8 +4294,8 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 10.10;
-				MARKETING_VERSION = 4.0.2;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MARKETING_VERSION = 4.1.0;
 				ONLY_ACTIVE_ARCH = NO;
 				OTHER_CODE_SIGN_FLAGS = "-o library,hard,kill,runtime";
 				SDKROOT = macosx;
@@ -4282,10 +4375,10 @@
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
-				CODE_SIGN_IDENTITY = "Developer ID Application: Charles Stigler (EG6ZYP3AQH)";
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 410;
+				CURRENT_PROJECT_VERSION = 411;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_MODEL_TUNING = G5;
@@ -4324,10 +4417,10 @@
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
-				CODE_SIGN_IDENTITY = "Developer ID Application: Charles Stigler (EG6ZYP3AQH)";
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 410;
+				CURRENT_PROJECT_VERSION = 411;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_MODEL_TUNING = G5;
 				GCC_NO_COMMON_BLOCKS = NO;
@@ -4377,7 +4470,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 410;
+				CURRENT_PROJECT_VERSION = 411;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_DYNAMIC_NO_PIC = NO;
@@ -4422,7 +4515,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = YES;
-				CURRENT_PROJECT_VERSION = 410;
+				CURRENT_PROJECT_VERSION = 411;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
@@ -4458,7 +4551,7 @@
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				CODE_SIGN_IDENTITY = "Developer ID Application: Charles Stigler (EG6ZYP3AQH)";
+				CODE_SIGN_IDENTITY = "Apple Development";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_DYNAMIC_NO_PIC = NO;
@@ -4501,7 +4594,7 @@
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				CODE_SIGN_IDENTITY = "Developer ID Application: Charles Stigler (EG6ZYP3AQH)";
+				CODE_SIGN_IDENTITY = "Apple Development";
 				COPY_PHASE_STRIP = YES;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -4527,14 +4620,12 @@
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
-				CODE_SIGN_IDENTITY = "Developer ID Application: Charles Stigler (EG6ZYP3AQH)";
+				CODE_SIGN_IDENTITY = "Apple Development";
 				COPY_PHASE_STRIP = NO;
 				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
-				CURRENT_PROJECT_VERSION = 410;
+				CURRENT_PROJECT_VERSION = 411;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(PLATFORM_DIR)/Developer/Library/Frameworks\n\n$(PLATFORM_DIR)/Developer/Library/Frameworks\n\n",
-				);
+				FRAMEWORK_SEARCH_PATHS = "$(PLATFORM_DIR)/Developer/Library/Frameworks\n\n$(PLATFORM_DIR)/Developer/Library/Frameworks\n\n";
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_MODEL_TUNING = G5;
 				GCC_NO_COMMON_BLOCKS = NO;
@@ -4562,14 +4653,12 @@
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
-				CODE_SIGN_IDENTITY = "Developer ID Application: Charles Stigler (EG6ZYP3AQH)";
+				CODE_SIGN_IDENTITY = "Apple Development";
 				COPY_PHASE_STRIP = NO;
 				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
-				CURRENT_PROJECT_VERSION = 410;
+				CURRENT_PROJECT_VERSION = 411;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(PLATFORM_DIR)/Developer/Library/Frameworks\n\n$(PLATFORM_DIR)/Developer/Library/Frameworks\n\n",
-				);
+				FRAMEWORK_SEARCH_PATHS = "$(PLATFORM_DIR)/Developer/Library/Frameworks\n\n$(PLATFORM_DIR)/Developer/Library/Frameworks\n\n";
 				GCC_MODEL_TUNING = G5;
 				GCC_NO_COMMON_BLOCKS = NO;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;

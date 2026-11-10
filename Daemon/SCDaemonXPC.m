@@ -65,6 +65,21 @@
     [SCDaemonBlockMethods updateBlockEndDate: newEndDate authorization: authData reply: reply];
 }
 
+- (void)updateSchedules:(NSArray<NSDictionary*>*)schedules authorization:(NSData *)authData reply:(void(^)(NSError* error))reply {
+    NSLog(@"XPC method called: updateSchedules");
+
+    NSError* error = [SCXPCAuthorization checkAuthorization: authData command: _cmd];
+    if (error != nil) {
+        if (![SCMiscUtilities errorIsAuthCanceled: error]) {
+            NSLog(@"ERROR: XPC authorization failed due to error %@", error);
+        }
+        reply(error);
+        return;
+    }
+
+    [SCDaemonBlockMethods updateSchedules: schedules authorization: authData reply: reply];
+}
+
 // Part of the HelperToolProtocol.  Returns the version number of the tool.  Note that never
 // requires authorization.
 - (void)getVersionWithReply:(void(^)(NSString * version))reply {

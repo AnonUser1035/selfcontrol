@@ -32,10 +32,12 @@
 #import "SCBlockFileReaderWriter.h"
 #import "SCUIUtilities.h"
 #import <TransformerKit/NSValueTransformer+TransformerKit.h>
+#import "ScheduleWindowController.h"
 
 @interface AppController () {}
 
 @property (atomic, strong, readwrite) SCXPCClient* xpc;
+@property (nonatomic, strong) ScheduleWindowController* scheduleWindowController; // fork
 
 @end
 
@@ -290,6 +292,9 @@
         [domainListWindowController_ refreshDomainList];
     }
     
+    // let the schedules window know (fork)
+    [self.scheduleWindowController refresh];
+
     // let the timer window know!
     if (timerWindowController_ != nil) {
         [timerWindowController_ performSelectorOnMainThread: @selector(configurationChanged)
@@ -418,6 +423,8 @@
     blocklistTeaserLabel_.stringValue = [SCUIUtilities blockTeaserStringWithMaxLength: 60];
 
 	[self refreshUserInterface];
+
+    [self installScheduleControls];
     
     NSOperatingSystemVersion minRequiredVersion = (NSOperatingSystemVersion){10,10,0}; // Yosemite
     NSString* minRequiredVersionString = @"10.10 (Yosemite)";
@@ -430,6 +437,49 @@
 		[unsupportedVersionAlert addButtonWithTitle: NSLocalizedString(@"OK", nil)];
 		[unsupportedVersionAlert runModal];
 	}
+}
+
+// fork: "Schedules…" in the app menu (under Edit Blocklist) and a button beside Edit Blocklist
+- (void)installScheduleControls {
+    NSMenu* appMenu = editBlocklistMenuItem_.menu;
+    if (appMenu != nil) {
+        NSMenuItem* schedulesItem = [[NSMenuItem alloc] initWithTitle: NSLocalizedString(@"Schedules…", @"Schedules menu item")
+                                                               action: @selector(showSchedules:)
+                                                        keyEquivalent: @"S"]; // cmd-shift-S
+        schedulesItem.target = self;
+        [appMenu insertItem: schedulesItem atIndex: [appMenu indexOfItem: editBlocklistMenuItem_] + 1];
+    }
+
+    NSView* content = initialWindow_.contentView;
+    if (content == nil || editBlocklistButton_ == nil) return;
+    NSButton* schedulesButton = [NSButton buttonWithTitle: NSLocalizedString(@"Schedules…", @"Schedules button") target: self action: @selector(showSchedules:)];
+    schedulesButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [content addSubview: schedulesButton];
+
+    // the teaser label was pinned right up against Edit Blocklist; make room for our button between them
+    for (NSLayoutConstraint* constraint in [content.constraints copy]) {
+        BOOL betweenTeaserAndEdit = (constraint.firstItem == editBlocklistButton_ && constraint.secondItem == blocklistTeaserLabel_)
+                                 || (constraint.firstItem == blocklistTeaserLabel_ && constraint.secondItem == editBlocklistButton_);
+        if (betweenTeaserAndEdit && (constraint.firstAttribute == NSLayoutAttributeLeading || constraint.firstAttribute == NSLayoutAttributeTrailing)) {
+            constraint.active = NO;
+        }
+    }
+    [NSLayoutConstraint activateConstraints: @[
+        [schedulesButton.trailingAnchor constraintEqualToAnchor: editBlocklistButton_.leadingAnchor constant: -4],
+        [schedulesButton.centerYAnchor constraintEqualToAnchor: editBlocklistButton_.centerYAnchor],
+        [schedulesButton.widthAnchor constraintGreaterThanOrEqualToConstant: 100],
+        [blocklistTeaserLabel_.trailingAnchor constraintLessThanOrEqualToAnchor: schedulesButton.leadingAnchor constant: -12],
+    ]];
+    [blocklistTeaserLabel_ setContentCompressionResistancePriority: NSLayoutPriorityDefaultLow forOrientation: NSLayoutConstraintOrientationHorizontal];
+}
+
+- (IBAction)showSchedules:(id)sender {
+    if (self.scheduleWindowController == nil) {
+        self.scheduleWindowController = [[ScheduleWindowController alloc] initWithXPCClient: self.xpc];
+    }
+    [self.scheduleWindowController refresh];
+    [self.scheduleWindowController showWindow: self];
+    [self.scheduleWindowController.window makeKeyAndOrderFront: self];
 }
 
 - (void)applicationWillTerminate:(NSNotification *)notification {

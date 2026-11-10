@@ -35,6 +35,9 @@ NS_ASSUME_NONNULL_BEGIN
 // The daemon will die if goes for too long without activity.
 - (void)resetInactivityTimer;
 
+// fork: recurring scheduled blocks. Runs SCDaemonBlockMethods.checkSchedules on a serial background queue.
+- (void)checkSchedulesSoon;
+
 @end
 
 NS_ASSUME_NONNULL_END

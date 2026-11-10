@@ -8,7 +8,10 @@
 #import "SCSentry.h"
 #import "SCSettings.h"
 
-#ifndef TESTING
+// fork: Sentry removed entirely (upstream's crash reporting; old SDK no longer builds)
+#define SC_NO_SENTRY 1
+
+#if !defined(TESTING) && !defined(SC_NO_SENTRY)
 #import <Sentry/Sentry.h>
 #endif
 
@@ -16,7 +19,7 @@
 
 //org.eyebeam.SelfControl
 + (void)startSentry:(NSString*)componentId {
-#ifndef TESTING
+#if !defined(TESTING) && !defined(SC_NO_SENTRY)
     [SentrySDK startWithConfigureOptions:^(SentryOptions *options) {
         options.dsn = @"https://58fbe7145368418998067f88896007b2@o504820.ingest.sentry.io/5592195";
         options.releaseName = [NSString stringWithFormat: @"%@%@", componentId, SELFCONTROL_VERSION_STRING];
@@ -112,7 +115,7 @@
     [defaultsDict removeObjectForKey: @"SULastCheckTime"];
     [defaultsDict removeObjectForKey: @"SULastProfileSubmissionDate"];
 
-#ifndef TESTING
+#if !defined(TESTING) && !defined(SC_NO_SENTRY)
     [SentrySDK configureScope:^(SentryScope * _Nonnull scope) {
         [scope setContextValue: defaultsDict forKey: @"NSUserDefaults"];
     }];
@@ -120,7 +123,7 @@
 }
 
 + (void)addBreadcrumb:(NSString*)message category:(NSString*)category {
-#ifndef TESTING
+#if !defined(TESTING) && !defined(SC_NO_SENTRY)
     SentryBreadcrumb* crumb = [[SentryBreadcrumb alloc] init];
     crumb.level = kSentryLevelInfo;
     crumb.category = category;
@@ -146,7 +149,7 @@
     NSLog(@"Reporting error %@ to Sentry...", error);
     [[SCSettings sharedSettings] updateSentryContext];
     [SCSentry updateDefaultsContext];
-#ifndef TESTING
+#if !defined(TESTING) && !defined(SC_NO_SENTRY)
     [SentrySDK captureError: error];
 #endif
 }
@@ -169,7 +172,7 @@
     [[SCSettings sharedSettings] updateSentryContext];
     [SCSentry updateDefaultsContext];
     
-#ifndef TESTING
+#if !defined(TESTING) && !defined(SC_NO_SENTRY)
     if (block != nil) {
         [SentrySDK captureMessage: message withScopeBlock: block];
     } else {

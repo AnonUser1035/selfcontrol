@@ -80,6 +80,9 @@
 // the domain blocklist window.  Spawns an alert box if a block is in progress.
 - (IBAction)showDomainList:(id)sender;
 
+// fork: show the recurring schedules window
+- (IBAction)showSchedules:(id)sender;
+
 // Allocates a new TimerWindowController if necessary and opens the timer window.
 - (void)showTimerWindow;
 

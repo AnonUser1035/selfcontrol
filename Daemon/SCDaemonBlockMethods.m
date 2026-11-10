@@ -13,6 +13,7 @@
 #import "SCDaemon.h"
 #import "LaunchctlHelper.h"
 #import "HostFileBlockerSet.h"
+#import "SCScheduleUtilities.h"
 
 NSTimeInterval METHOD_LOCK_TIMEOUT = 5.0;
 NSTimeInterval CHECKUP_LOCK_TIMEOUT = 0.5; // use a shorter lock timeout for checkups, because we'd prefer not to have tons pile up
@@ -80,6 +81,14 @@ NSTimeInterval CHECKUP_LOCK_TIMEOUT = 0.5; // use a shorter lock timeout for che
         [LaunchctlHelper unloadLaunchdJobWithPlistAt: @"/Library/LaunchDaemons/org.eyebeam.SelfControl.plist"];
     }
 
+    NSError* startErr = [self startBlockWhileLockedWithBlocklist: blocklist isAllowlist: isAllowlist endDate: endDate blockSettings: blockSettings];
+    reply(startErr);
+    [self.daemonMethodLock unlock];
+}
+
+// shared by the startBlock XPC method and the scheduler. Caller must hold daemonMethodLock
+// and must already have checked that no block is running.
++ (NSError*)startBlockWhileLockedWithBlocklist:(NSArray<NSString*>*)blocklist isAllowlist:(BOOL)isAllowlist endDate:(NSDate*)endDate blockSettings:(NSDictionary*)blockSettings {
     SCSettings* settings = [SCSettings sharedSettings];
     // update SCSettings with the blocklist and end date that've been requested
     [settings setValue: blocklist forKey: @"ActiveBlocklist"];
@@ -100,9 +109,7 @@ NSTimeInterval CHECKUP_LOCK_TIMEOUT = 0.5; // use a shorter lock timeout for che
         NSLog(@"Block End Date: %@ (%@), vs now is %@", [settings valueForKey: @"BlockEndDate"], [[settings valueForKey: @"BlockEndDate"] class], [NSDate date]);
         NSError* err = [SCErr errorWithCode: 302];
         [SCSentry captureError: err];
-        reply(err);
-        [self.daemonMethodLock unlock];
-        return;
+        return err;
     }
 
     NSLog(@"Adding firewall rules...");
@@ -125,11 +132,10 @@ NSTimeInterval CHECKUP_LOCK_TIMEOUT = 0.5; // use a shorter lock timeout for che
 
     [SCSentry addBreadcrumb: @"Daemon added block successfully" category: @"daemon"];
     NSLog(@"INFO: Block successfully added.");
-    reply(nil);
 
     [[SCDaemon sharedDaemon] resetInactivityTimer];
     [[SCDaemon sharedDaemon] startCheckupTimer];
-    [self.daemonMethodLock unlock];
+    return nil;
 }
 
 + (void)updateBlocklist:(NSArray<NSString*>*)newBlocklist authorization:(NSData *)authData reply:(void(^)(NSError* error))reply {
@@ -178,8 +184,8 @@ NSTimeInterval CHECKUP_LOCK_TIMEOUT = 0.5; // use a shorter lock timeout for che
     }
     
     BlockManager* blockManager = [[BlockManager alloc] initAsAllowlist: [settings boolForKey: @"ActiveBlockAsWhitelist"]
-                                                            allowLocal: [settings boolForKey: @"EvaluateCommonSubdomains"]
-                                               includeCommonSubdomains: [settings boolForKey: @"AllowLocalNetworks"]
+                                                            allowLocal: [settings boolForKey: @"AllowLocalNetworks"]
+                                               includeCommonSubdomains: [settings boolForKey: @"EvaluateCommonSubdomains"]
                                                   includeLinkedDomains: [settings boolForKey: @"IncludeLinkedDomains"]];
     [blockManager enterAppendMode];
     [blockManager addBlockEntriesFromStrings: added];
@@ -381,7 +387,136 @@ NSTimeInterval CHECKUP_LOCK_TIMEOUT = 0.5; // use a shorter lock timeout for che
         [SCSentry addBreadcrumb: @"Daemon found compromised block integrity and re-added rules" category: @"daemon"];
         NSLog(@"INFO: Integrity check ran; readded block rules.");
     } else NSLog(@"INFO: Integrity check ran; no action needed.");
-    
+
+    [self.daemonMethodLock unlock];
+}
+
+#pragma mark - Scheduled blocks (fork)
+
++ (void)updateSchedules:(NSArray<NSDictionary*>*)schedules authorization:(NSData *)authData reply:(void(^)(NSError* error))reply {
+    if (![SCDaemonBlockMethods lockOrTimeout: reply]) {
+        return;
+    }
+    [[SCDaemon sharedDaemon] resetInactivityTimer];
+
+    SCSettings* settings = [SCSettings sharedSettings];
+    NSError* err = [SCScheduleUtilities validateSchedules: schedules];
+    if (err == nil) {
+        err = [SCScheduleUtilities validateChangeFromSchedules: [settings valueForKey: @"Schedules"]
+                                                   toSchedules: schedules
+                                                        atDate: [NSDate date]];
+    }
+    if (err != nil) {
+        NSLog(@"ERROR: Rejected schedule update: %@", err.localizedDescription);
+        reply(err);
+        [self.daemonMethodLock unlock];
+        return;
+    }
+
+    [settings setValue: schedules forKey: @"Schedules"];
+    NSError* syncErr = [settings syncSettingsAndWait: 5];
+    if (syncErr != nil) {
+        NSLog(@"WARNING: Sync failed or timed out with error %@ after updating schedules", syncErr);
+    }
+    [SCHelperToolUtilities sendConfigurationChangedNotification];
+
+    NSLog(@"INFO: Schedules updated (%lu schedules).", (unsigned long)schedules.count);
+    reply(nil);
+
+    [[SCDaemon sharedDaemon] resetInactivityTimer];
+    [self.daemonMethodLock unlock];
+
+    // one of the new schedules might be active right now
+    [[SCDaemon sharedDaemon] checkSchedulesSoon];
+}
+
++ (void)checkSchedules {
+    SCSettings* settings = [SCSettings sharedSettings];
+    NSArray* schedules = [settings valueForKey: @"Schedules"];
+    if (![schedules isKindOfClass: [NSArray class]] || schedules.count == 0) return;
+
+    NSDate* now = [NSDate date];
+    NSArray<NSDictionary*>* activeSchedules = [SCScheduleUtilities activeSchedules: schedules atDate: now];
+    if (activeSchedules.count == 0) return;
+
+    if (![SCDaemonBlockMethods lockOrTimeout: nil timeout: METHOD_LOCK_TIMEOUT]) {
+        return;
+    }
+    [[SCDaemon sharedDaemon] resetInactivityTimer];
+
+    // combine every active schedule: block the union of their sites until the latest window ends
+    NSDate* endDate = nil;
+    NSMutableOrderedSet<NSString*>* sites = [NSMutableOrderedSet orderedSet];
+    NSMutableDictionary* blockSettings = [NSMutableDictionary dictionary];
+    for (NSDictionary* schedule in activeSchedules) {
+        NSDate* windowEnd = [SCScheduleUtilities activeWindowEndForSchedule: schedule atDate: now];
+        if (windowEnd == nil) continue;
+        if (endDate == nil || [windowEnd compare: endDate] == NSOrderedDescending) {
+            endDate = windowEnd;
+        }
+        [sites addObjectsFromArray: schedule[SCScheduleKeyBlocklist]];
+        NSDictionary* scheduleBlockSettings = schedule[SCScheduleKeyBlockSettings];
+        for (NSString* key in scheduleBlockSettings) {
+            if (blockSettings[key] == nil) blockSettings[key] = scheduleBlockSettings[key];
+        }
+    }
+    for (NSString* key in @[@"ClearCaches", @"AllowLocalNetworks", @"EvaluateCommonSubdomains", @"IncludeLinkedDomains", @"BlockSoundShouldPlay", @"BlockSound", @"EnableErrorReporting"]) {
+        if (blockSettings[key] == nil) blockSettings[key] = [settings valueForKey: key];
+    }
+
+    if (endDate == nil || sites.count == 0 || [SCBlockUtilities legacyBlockIsRunning]) {
+        [self.daemonMethodLock unlock];
+        return;
+    }
+
+    if (![SCBlockUtilities modernBlockIsRunning]) {
+        NSLog(@"INFO: Schedule window is active, starting scheduled block until %@", endDate);
+        NSError* err = [self startBlockWhileLockedWithBlocklist: sites.array isAllowlist: NO endDate: endDate blockSettings: blockSettings];
+        if (err != nil) {
+            NSLog(@"ERROR: Failed to start scheduled block with error %@", err);
+        }
+        [self.daemonMethodLock unlock];
+        return;
+    }
+
+    // a block is already running (manual or scheduled): make sure it covers the schedule
+    BOOL changed = NO;
+    BOOL addedSites = NO;
+    if (![settings boolForKey: @"ActiveBlockAsWhitelist"]) {
+        NSArray* activeBlocklist = [settings valueForKey: @"ActiveBlocklist"] ?: @[];
+        NSMutableOrderedSet<NSString*>* missing = [sites mutableCopy];
+        [missing removeObjectsInArray: activeBlocklist];
+        if (missing.count > 0) {
+            NSLog(@"INFO: Adding %lu scheduled sites to the running block", (unsigned long)missing.count);
+            BlockManager* blockManager = [[BlockManager alloc] initAsAllowlist: NO
+                                                                    allowLocal: [settings boolForKey: @"AllowLocalNetworks"]
+                                                       includeCommonSubdomains: [settings boolForKey: @"EvaluateCommonSubdomains"]
+                                                          includeLinkedDomains: [settings boolForKey: @"IncludeLinkedDomains"]];
+            [blockManager enterAppendMode];
+            [blockManager addBlockEntriesFromStrings: missing.array];
+            [blockManager finishAppending];
+            [settings setValue: [activeBlocklist arrayByAddingObjectsFromArray: missing.array] forKey: @"ActiveBlocklist"];
+            changed = addedSites = YES;
+        }
+    }
+    NSDate* currentEndDate = [settings valueForKey: @"BlockEndDate"];
+    if (![currentEndDate isKindOfClass: [NSDate class]] || [currentEndDate compare: endDate] == NSOrderedAscending) {
+        NSLog(@"INFO: Extending running block to the end of the schedule window (%@)", endDate);
+        [settings setValue: endDate forKey: @"BlockEndDate"];
+        changed = YES;
+    }
+
+    if (changed) {
+        NSError* syncErr = [settings syncSettingsAndWait: 5];
+        if (syncErr != nil) {
+            NSLog(@"WARNING: Sync failed or timed out with error %@ after applying schedule", syncErr);
+        }
+        [SCHelperToolUtilities sendConfigurationChangedNotification];
+        if (addedSites) {
+            [SCHelperToolUtilities clearCachesIfRequested];
+        }
+    }
+
     [self.daemonMethodLock unlock];
 }
 

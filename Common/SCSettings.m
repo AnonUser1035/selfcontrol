@@ -8,7 +8,10 @@
 #import "SCSettings.h"
 #import <AppKit/AppKit.h>
 
-#ifndef TESTING
+// fork: Sentry removed entirely (upstream's crash reporting; old SDK no longer builds)
+#define SC_NO_SENTRY 1
+
+#if !defined(TESTING) && !defined(SC_NO_SENTRY)
 #import <Sentry/Sentry.h>
 #endif
 
@@ -96,6 +99,9 @@ NSString* const SETTINGS_FILE_DIR = @"/usr/local/etc/";
         @"AllowLocalNetworks": @YES,
 
         @"EnableErrorReporting": @([SCMiscUtilities systemThirdPartyCrashReportingEnabled]),
+
+        // fork: recurring scheduled blocks, managed by the daemon (see SCScheduleUtilities.h)
+        @"Schedules": @[],
 
         @"SettingsVersionNumber": @0,
         @"LastSettingsUpdate": [NSDate distantPast] // special value that keeps track of when we last updated our settings
@@ -484,7 +490,7 @@ NSString* const SETTINGS_FILE_DIR = @"/usr/local/etc/";
                                                                  timeStyle: NSDateFormatterFullStyle];
     }
 
-#ifndef TESTING
+#if !defined(TESTING) && !defined(SC_NO_SENTRY)
     [SentrySDK configureScope:^(SentryScope * _Nonnull scope) {
         [scope setContextValue: dictCopy forKey: @"SCSettings"];
     }];

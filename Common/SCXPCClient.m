@@ -351,6 +351,44 @@
     }];
 }
 
+- (void)ensureDaemonInstalled:(void(^)(NSError* _Nullable error))callback {
+    [self getVersion:^(NSString* version, NSError* versionErr) {
+        if (versionErr == nil && [version isEqualToString: SELFCONTROL_VERSION_STRING]) {
+            callback(nil);
+            return;
+        }
+        NSLog(@"Daemon not running or out of date (version %@, error %@); installing", version, versionErr);
+        [self installDaemon:^(NSError* installErr) {
+            if (installErr != nil) {
+                callback(installErr);
+                return;
+            }
+            [self refreshConnectionAndRun:^{
+                callback(nil);
+            }];
+        }];
+    }];
+}
+
+- (void)updateSchedules:(NSArray<NSDictionary*>*)schedules reply:(void(^)(NSError* error))reply {
+    [self connectAndExecuteCommandBlock:^(NSError * connectError) {
+        if (connectError != nil) {
+            NSLog(@"Schedule update failed with connection error: %@", connectError);
+            reply(connectError);
+        } else {
+            [[self.daemonConnection remoteObjectProxyWithErrorHandler:^(NSError * proxyError) {
+                NSLog(@"Schedule update command failed with remote object proxy error: %@", proxyError);
+                reply(proxyError);
+            }] updateSchedules: schedules authorization: self.authorization reply:^(NSError* error) {
+                if (error != nil && ![SCMiscUtilities errorIsAuthCanceled: error]) {
+                    NSLog(@"Schedule update failed with error = %@\n", error);
+                }
+                reply(error);
+            }];
+        }
+    }];
+}
+
 - (NSString*)selfControlHelperToolPath {
     static NSString* path;
 

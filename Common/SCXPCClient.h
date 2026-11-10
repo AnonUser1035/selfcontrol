@@ -23,6 +23,14 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)updateBlocklist:(NSArray<NSString*>*)newBlocklist reply:(void(^)(NSError* error))reply;
 - (void)updateBlockEndDate:(NSDate*)newEndDate reply:(void(^)(NSError* error))reply;
 
+// fork: connects to the daemon if it's running and matches this build's version,
+// otherwise (re)installs it, which asks for an admin password. Callback may run on any thread.
+- (void)ensureDaemonInstalled:(void(^)(NSError* _Nullable error))callback;
+
+// fork: replace the recurring block schedules. The daemon must already be installed
+// (call installDaemon first: it may have unloaded itself if no block or schedule was active).
+- (void)updateSchedules:(NSArray<NSDictionary*>*)schedules reply:(void(^)(NSError* error))reply;
+
 @end
 
 NS_ASSUME_NONNULL_END

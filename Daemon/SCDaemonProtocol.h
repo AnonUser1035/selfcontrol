@@ -20,6 +20,10 @@ NS_ASSUME_NONNULL_BEGIN
 // XPC method to extend block
 - (void)updateBlockEndDate:(NSDate*)newEndDate authorization:(NSData *)authData reply:(void(^)(NSError* error))reply;
 
+// XPC method to replace the recurring block schedules (see SCScheduleUtilities.h).
+// Rejected if it would remove, disable or weaken a schedule whose window is active right now.
+- (void)updateSchedules:(NSArray<NSDictionary*>*)schedules authorization:(NSData *)authData reply:(void(^)(NSError* error))reply;
+
 // XPC method to get version of the installed daemon
 - (void)getVersionWithReply:(void(^)(NSString * version))reply;
 
