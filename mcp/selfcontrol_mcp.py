@@ -118,6 +118,10 @@ def parse_hhmm(value, field):
     return hours * 60 + minutes
 
 
+def sites_phrase(n):
+    return "%d site%s" % (n, "" if n == 1 else "s")
+
+
 def block_name(reason):
     reason = (reason or "").strip().replace("\n", " ")
     return ("Codex: " + reason)[:60] if reason else "Codex focus"
@@ -131,9 +135,9 @@ def summarize_status(status, config):
         sites = len(status.get("activeBlocklist") or [])
         if ends:
             left = max(0, int(round((ends - now).total_seconds() / 60)))
-            lines.append("A block is running until %s (%d min left), blocking %d sites." % (fmt_time(ends), left, sites))
+            lines.append("A block is running until %s (%d min left), blocking %s." % (fmt_time(ends), left, sites_phrase(sites)))
         else:
-            lines.append("A block is running, blocking %d sites." % sites)
+            lines.append("A block is running, blocking %s." % sites_phrase(sites))
     else:
         lines.append("No block is running.")
 
@@ -149,7 +153,7 @@ def summarize_status(status, config):
             if start.date() == now.date():
                 today.append("%s (%s)" % (s["time"], label))
     lines.append("Scheduled for today: " + ("; ".join(today) if today else "nothing else."))
-    lines.append("Focus blocks cover %d sites: %s." % (len(config["sites"]), ", ".join(config["sites"])))
+    lines.append("Focus blocks cover %s: %s." % (sites_phrase(len(config["sites"])), ", ".join(config["sites"])))
     lines.append("Limits: %d to %d minutes per block, up to %d windows per call. Blocks can't be stopped early."
                  % (MIN_MINUTES, config["max_block_minutes"], MAX_WINDOWS_PER_CALL))
     return "\n".join(lines)
@@ -205,7 +209,7 @@ def tool_start_focus_block(args):
     ends = parse_iso(status.get("blockEndsAt")) if status else None
     if not (status and status.get("blockRunning")):
         raise ToolError("Saved the focus block, but SelfControl hasn't started it yet. Check get_focus_status in a minute.")
-    text = "Focus block on: %d sites blocked until %s." % (len(config["sites"]), fmt_time(ends or end))
+    text = "Focus block on: %s blocked until %s." % (sites_phrase(len(config["sites"])), fmt_time(ends or end))
     if ends and ends > end + datetime.timedelta(minutes=1):
         text += " (An existing block already runs until then; the focus sites were added to it.)"
     return text, {"blockRunning": True, "blockEndsAt": status.get("blockEndsAt"), "sites": config["sites"]}
@@ -242,8 +246,8 @@ def tool_schedule_focus_blocks(args):
         described.append("%s - %s%s" % (fmt_time(start_dt), fmt_time(end_dt), " (starts now)" if start_dt <= now else ""))
 
     created = add_one_off(base.strftime("%Y-%m-%d"), windows, config, args.get("reason"))
-    text = "Scheduled %d focus block%s %s, each blocking %d sites:\n  %s" % (
-        len(windows), "" if len(windows) == 1 else "s", day, len(config["sites"]), "\n  ".join(described))
+    text = "Scheduled %d focus block%s %s, each blocking %s:\n  %s" % (
+        len(windows), "" if len(windows) == 1 else "s", day, sites_phrase(len(config["sites"])), "\n  ".join(described))
     return text, {"day": day, "created": created}
 
 
