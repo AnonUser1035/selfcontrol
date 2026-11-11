@@ -163,8 +163,8 @@ def window_length(start_min, end_min):
 
 
 def parse_day(value, field, config, now=None):
-    """'today', 'tomorrow', a weekday ('fri', 'friday': the next one, today included; 'next fri': a week later
-    if today is Friday) or YYYY-MM-DD. Returns a date within the planning horizon."""
+    """'today', 'tomorrow', a weekday ('fri', 'friday': the next one, today included; 'next fri': the one a week
+    after that) or YYYY-MM-DD. Returns a date within the planning horizon."""
     now = now or datetime.datetime.now()
     today = now.date()
     if not isinstance(value, str) or not value.strip():
@@ -184,9 +184,7 @@ def parse_day(value, field, config, now=None):
             matches = [i for i, w in enumerate(WEEKDAYS) if len(name) >= 2 and w.startswith(name)]
             if len(matches) != 1:
                 raise ToolError("%s must be today, tomorrow, a weekday or YYYY-MM-DD, got %r" % (field, value))
-            offset = (matches[0] - today.weekday()) % 7
-            if offset == 0 and is_next:
-                offset = 7
+            offset = (matches[0] - today.weekday()) % 7 + (7 if is_next else 0)
             day = today + datetime.timedelta(days=offset)
     if day < today - datetime.timedelta(days=1):
         raise ToolError("%s (%s) is in the past" % (field, day.isoformat()))
@@ -207,6 +205,11 @@ def fmt_day(d, today=None):
     if d == today + datetime.timedelta(days=1):
         return "tomorrow"
     return d.strftime("%a %b %-d")
+
+
+def on_day(d):
+    text = fmt_day(d)
+    return text if text in ("today", "tomorrow") else "on " + text
 
 
 def fmt_when(dt):
@@ -239,7 +242,7 @@ def window_lock_note(start, end, now):
         return "running now, locked"
     locks_at = start - datetime.timedelta(hours=NOTICE_HOURS)
     if locks_at <= now:
-        return "locked (starts within %d h)" % NOTICE_HOURS
+        return "locked, starts within %d h" % NOTICE_HOURS
     return "can change until %s" % fmt_when(locks_at)
 
 
@@ -463,8 +466,9 @@ def tool_change_focus_block(args):
     changed = run_schedule_cli(cli_args)
     c = changed[0] if changed else {}
     nxt = parse_iso(c.get("nextStart"))
-    text = "Changed %s: now %s %s.%s" % (schedule_label(c or s), c.get("days"), c.get("time"),
-                                        (" Next: %s." % fmt_when(nxt)) if nxt else "")
+    text = "Changed %s: now %s %s." % (schedule_label(c or s), c.get("days"), c.get("time"))
+    if nxt and not c.get("oneOff"):
+        text += " Next: %s." % fmt_when(nxt)
     return text, {"changed": changed}
 
 
@@ -484,7 +488,7 @@ def tool_cancel_focus_block(args):
     if date_arg is not None:
         day = parse_day(date_arg, "date", {"max_days_ahead": 366})
         run_schedule_cli(["skip", s["id"], "--date", day.isoformat()])
-        return "Skipping %s on %s. It runs as usual on its other days." % (label, fmt_day(day)), {"skipped": s["id"], "date": day.isoformat()}
+        return "Skipping %s %s. It runs as usual on its other days." % (label, on_day(day)), {"skipped": s["id"], "date": day.isoformat()}
 
     if args.get("whole_schedule") is not True:
         raise ToolError("%s is a weekly schedule (%s %s). Pass date to skip one day, or whole_schedule: true "
@@ -493,7 +497,7 @@ def tool_cancel_focus_block(args):
     return "Deleted the weekly schedule %s (%s %s)." % (label, s.get("days"), s.get("time")), {"removed": s["id"]}
 
 
-DAY_DESCRIPTION = "today, tomorrow, a weekday (mon, friday: the next one, today included; 'next fri' for the week after) or YYYY-MM-DD."
+DAY_DESCRIPTION = "today, tomorrow, a weekday (mon, friday: the next one, today included; 'next fri': a week after that) or YYYY-MM-DD."
 TIME_PATTERN = "^\\d{1,2}:\\d{2}$"
 WRITE_HINTS = {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False}
 

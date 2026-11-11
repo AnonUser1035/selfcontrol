@@ -262,8 +262,7 @@ static NSInteger const kMinutesPerDay = 24 * 60;
     NSInteger weekday = [self weekdayFromToken: [str hasPrefix: @"next"] ? [[str substringFromIndex: 4] stringByTrimmingCharactersInSet: [NSCharacterSet whitespaceCharacterSet]] : str];
     if (weekday == 0) return nil;
     NSInteger todayWeekday = [cal component: NSCalendarUnitWeekday fromDate: now];
-    NSInteger offset = (weekday - todayWeekday + 7) % 7;
-    if (offset == 0 && [str hasPrefix: @"next"]) offset = 7;
+    NSInteger offset = (weekday - todayWeekday + 7) % 7 + ([str hasPrefix: @"next"] ? 7 : 0);
     return [self dateStringForDate: [self dateOnDay: now dayOffset: offset minute: 12 * 60 calendar: cal]];
 }
 

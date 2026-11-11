@@ -89,7 +89,7 @@ extern NSInteger const SCScheduleChangeNoticeMinutes;
 // also drops skip dates whose window is long over
 + (NSArray<NSDictionary*>*)schedulesByPruningExpired:(nullable NSArray*)schedules atDate:(NSDate*)date;
 + (NSString*)dateStringForDate:(NSDate*)date;          // local "yyyy-MM-dd"
-// "today", "tomorrow", a weekday ("fri", "friday": the next one, today included) or "yyyy-MM-dd"
+// "today", "tomorrow", a weekday ("fri", "friday": the next one, today included; "next fri": a week after that) or "yyyy-MM-dd"
 + (nullable NSString*)dateStringFromUserString:(NSString*)string atDate:(NSDate*)now;
 + (nullable NSDate*)dateForDateString:(NSString*)string; // local midnight of a "yyyy-MM-dd" string
 

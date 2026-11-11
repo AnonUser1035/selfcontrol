@@ -14,7 +14,7 @@ plan blocks on any day, add weekly schedules, and move or cancel planned blocks 
 | `change_focus_block(id, date?, days?, start?, end?, name?)` | Move or retime a planned block or weekly schedule, including ones you made in the app. |
 | `cancel_focus_block(id, date?, whole_schedule?)` | Cancel a one-off block, skip one day of a weekly schedule, or delete a whole weekly schedule. |
 
-`date` takes `today`, `tomorrow`, a weekday (`fri`: the next one, today included; `next fri`: the week after) or `YYYY-MM-DD`.
+`date` takes `today`, `tomorrow`, a weekday (`fri`: the next one, today included; `next fri`: a week after that) or `YYYY-MM-DD`.
 
 ## Guardrails
 
