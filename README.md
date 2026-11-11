@@ -12,7 +12,7 @@ SelfControl is a free and open-source application for macOS that lets you block 
 
 This fork adds **recurring scheduled blocks** (e.g. weekdays 9:00–17:00, or every night 23:00–07:00).
 
-- Schedules are stored and enforced by SelfControl's root daemon, so they start on time even when the app is closed, and survive reboots. The daemon stays loaded while any schedule is enabled.
+- Schedules are stored and enforced by SelfControl's root daemon, so they start on time even when the app is closed, and survive reboots..
 - Each schedule keeps its own copy of the sites to block (defaulting to your blocklist), so emptying your main blocklist can't weaken a schedule.
 - If a block is already running when a schedule starts, the block is extended to the end of the schedule's window and the schedule's sites are added to it.
 - A schedule can't be removed, turned off or shortened while it's active. You can still add sites to it.
@@ -28,7 +28,11 @@ selfcontrol-cli schedule disable work
 selfcontrol-cli schedule remove work
 ```
 
-Changing schedules asks for an administrator password, like starting a block.
+One-off blocks: `selfcontrol-cli schedule add --date today --windows 10:00-12:00,14:00-16:30` (deleted once over).
+
+**Passwords.** Anything that only makes blocking stricter and lasts at most 4 hours doesn't ask for a password: starting a block, extending it, adding sites, or adding/enabling a schedule whose window is 4 hours or less. Anything that loosens blocking (removing, disabling or editing a schedule) or adds a longer restriction still asks for an administrator password. The daemon makes this decision, using separate authorization rights (`org.eyebeam.SelfControl.startShortBlock`, `tightenShortBlock`, `tightenSchedules`) that default to "allow"; set them to `authenticate-admin` with `security authorizationdb` to require the password again. The daemon also stays loaded permanently now, so it never needs reinstalling.
+
+**AI agents.** [`mcp/`](./mcp) has an MCP server so agents like Codex or Claude Code can start and schedule focus blocks of a fixed site list, within the 4-hour cap, but never stop one.
 
 Other fork changes: builds with Xcode 27 / the macOS 27 SDK (deployment target 12.0), Sparkle auto-updates are off (they would replace this build with upstream's), and Sentry crash reporting is removed. To build it yourself you need your own signing certificate: replace the team ID `ST2ZP3Y3L5` throughout the project, the Info.plists and `Daemon/SCDaemon.m`, then follow the build steps below (`git submodule update --init` first). The privileged helper only works when the app, CLI and daemon are all signed by the same team.
 

@@ -250,6 +250,7 @@ NSTimeInterval CHECKUP_LOCK_TIMEOUT = 0.5; // use a shorter lock timeout for che
         [SCSentry captureError: err];
         reply(err);
         [self.daemonMethodLock unlock];
+        return; // fork: upstream fell through and applied the change anyway
     }
     if ([newEndDate timeIntervalSinceDate: currentEndDate] > 86400) { // 86400 seconds = 1 day
         NSLog(@"ERROR: Can't extend block end date by more than 1 day at a time");
@@ -257,6 +258,7 @@ NSTimeInterval CHECKUP_LOCK_TIMEOUT = 0.5; // use a shorter lock timeout for che
         [SCSentry captureError: err];
         reply(err);
         [self.daemonMethodLock unlock];
+        return; // fork: upstream fell through and applied the change anyway
     }
     
     [settings setValue: newEndDate forKey: @"BlockEndDate"];
@@ -393,18 +395,21 @@ NSTimeInterval CHECKUP_LOCK_TIMEOUT = 0.5; // use a shorter lock timeout for che
 
 #pragma mark - Scheduled blocks (fork)
 
-+ (void)updateSchedules:(NSArray<NSDictionary*>*)schedules authorization:(NSData *)authData reply:(void(^)(NSError* error))reply {
++ (void)updateSchedules:(NSArray<NSDictionary*>*)schedules requirePasswordlessChange:(BOOL)requirePasswordless reply:(void(^)(NSError* error))reply {
     if (![SCDaemonBlockMethods lockOrTimeout: reply]) {
         return;
     }
     [[SCDaemon sharedDaemon] resetInactivityTimer];
 
     SCSettings* settings = [SCSettings sharedSettings];
+    NSDate* now = [NSDate date];
+    NSArray* currentSchedules = [settings valueForKey: @"Schedules"];
     NSError* err = [SCScheduleUtilities validateSchedules: schedules];
     if (err == nil) {
-        err = [SCScheduleUtilities validateChangeFromSchedules: [settings valueForKey: @"Schedules"]
-                                                   toSchedules: schedules
-                                                        atDate: [NSDate date]];
+        err = [SCScheduleUtilities validateChangeFromSchedules: currentSchedules toSchedules: schedules atDate: now];
+    }
+    if (err == nil && requirePasswordless && ![SCScheduleUtilities changeIsPasswordlessFromSchedules: currentSchedules toSchedules: schedules atDate: now reason: nil]) {
+        err = [NSError errorWithDomain: SCScheduleErrorDomain code: 31 userInfo: @{ NSLocalizedDescriptionKey: @"Your schedules changed while this was being saved. Please try again." }];
     }
     if (err != nil) {
         NSLog(@"ERROR: Rejected schedule update: %@", err.localizedDescription);
@@ -436,13 +441,32 @@ NSTimeInterval CHECKUP_LOCK_TIMEOUT = 0.5; // use a shorter lock timeout for che
     if (![schedules isKindOfClass: [NSArray class]] || schedules.count == 0) return;
 
     NSDate* now = [NSDate date];
+    BOOL hasExpiredOneOffs = [SCScheduleUtilities schedulesByRemovingExpiredOneOffs: schedules atDate: now].count != schedules.count;
     NSArray<NSDictionary*>* activeSchedules = [SCScheduleUtilities activeSchedules: schedules atDate: now];
-    if (activeSchedules.count == 0) return;
+    if (activeSchedules.count == 0 && !hasExpiredOneOffs) return;
 
     if (![SCDaemonBlockMethods lockOrTimeout: nil timeout: METHOD_LOCK_TIMEOUT]) {
         return;
     }
     [[SCDaemon sharedDaemon] resetInactivityTimer];
+
+    // one-off schedules are deleted once their window has passed
+    schedules = [settings valueForKey: @"Schedules"];
+    NSArray* prunedSchedules = [SCScheduleUtilities schedulesByRemovingExpiredOneOffs: schedules atDate: now];
+    if (prunedSchedules.count != schedules.count) {
+        NSLog(@"INFO: Removing %lu finished one-off schedule(s)", (unsigned long)(schedules.count - prunedSchedules.count));
+        [settings setValue: prunedSchedules forKey: @"Schedules"];
+        NSError* syncErr = [settings syncSettingsAndWait: 5];
+        if (syncErr != nil) {
+            NSLog(@"WARNING: Sync failed or timed out with error %@ after pruning schedules", syncErr);
+        }
+        [SCHelperToolUtilities sendConfigurationChangedNotification];
+    }
+    activeSchedules = [SCScheduleUtilities activeSchedules: prunedSchedules atDate: now];
+    if (activeSchedules.count == 0) {
+        [self.daemonMethodLock unlock];
+        return;
+    }
 
     // combine every active schedule: block the union of their sites until the latest window ends
     NSDate* endDate = nil;

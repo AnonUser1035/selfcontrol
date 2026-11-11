@@ -15,8 +15,10 @@ NSString* const SCScheduleKeyStartMinute = @"StartMinute";
 NSString* const SCScheduleKeyEndMinute = @"EndMinute";
 NSString* const SCScheduleKeyBlocklist = @"Blocklist";
 NSString* const SCScheduleKeyBlockSettings = @"BlockSettings";
+NSString* const SCScheduleKeyDate = @"Date";
 
 NSUInteger const SCScheduleMaxCount = 50;
+NSInteger const SCPasswordlessMaxMinutes = 4 * 60;
 
 static NSInteger const kMinutesPerDay = 24 * 60;
 
@@ -43,6 +45,21 @@ static NSInteger const kMinutesPerDay = 24 * 60;
         schedule[SCScheduleKeyName] = name;
     }
     return schedule;
+}
+
++ (NSMutableDictionary*)oneOffScheduleWithName:(NSString*)name
+                                          date:(NSString*)dateString
+                                   startMinute:(NSInteger)startMinute
+                                     endMinute:(NSInteger)endMinute
+                                     blocklist:(NSArray<NSString*>*)blocklist
+                                 blockSettings:(NSDictionary*)blockSettings {
+    NSMutableDictionary* schedule = [self scheduleWithName: name weekdays: @[] startMinute: startMinute endMinute: endMinute blocklist: blocklist blockSettings: blockSettings];
+    schedule[SCScheduleKeyDate] = dateString;
+    return schedule;
+}
+
++ (BOOL)isOneOffSchedule:(NSDictionary*)schedule {
+    return [schedule[SCScheduleKeyDate] isKindOfClass: [NSString class]];
 }
 
 + (NSArray<NSNumber*>*)normalizedWeekdays:(NSArray*)weekdays {
@@ -82,8 +99,12 @@ static NSInteger const kMinutesPerDay = 24 * 60;
         return [self errorWithCode: 4 description: @"Schedule is missing its enabled flag."];
     }
 
-    id weekdays = schedule[SCScheduleKeyWeekdays];
-    if (![weekdays isKindOfClass: [NSArray class]] || [weekdays count] == 0) {
+    id dateString = schedule[SCScheduleKeyDate];
+    if (dateString != nil && ([self dateComponentsFromDateString: dateString] == nil)) {
+        return [self errorWithCode: 12 description: @"One-off schedule has an invalid date."];
+    }
+    id weekdays = schedule[SCScheduleKeyWeekdays] ?: @[];
+    if (![weekdays isKindOfClass: [NSArray class]] || (dateString == nil && [weekdays count] == 0)) {
         return [self errorWithCode: 5 description: @"Pick at least one day for the schedule."];
     }
     for (id day in weekdays) {
@@ -150,6 +171,7 @@ static NSInteger const kMinutesPerDay = 24 * 60;
         BOOL weakened = (newSchedule == nil)
             || ![newSchedule[SCScheduleKeyEnabled] boolValue]
             || ![[NSSet setWithArray: [self normalizedWeekdays: newSchedule[SCScheduleKeyWeekdays]]] isEqualToSet: [NSSet setWithArray: [self normalizedWeekdays: oldSchedule[SCScheduleKeyWeekdays]]]]
+            || !((newSchedule[SCScheduleKeyDate] == nil && oldSchedule[SCScheduleKeyDate] == nil) || [newSchedule[SCScheduleKeyDate] isEqual: oldSchedule[SCScheduleKeyDate]])
             || [newSchedule[SCScheduleKeyStartMinute] integerValue] != [oldSchedule[SCScheduleKeyStartMinute] integerValue]
             || [newSchedule[SCScheduleKeyEndMinute] integerValue] != [oldSchedule[SCScheduleKeyEndMinute] integerValue]
             || ![[NSSet setWithArray: oldSchedule[SCScheduleKeyBlocklist] ?: @[]] isSubsetOfSet: [NSSet setWithArray: newSchedule[SCScheduleKeyBlocklist] ?: @[]]];
@@ -188,8 +210,127 @@ static NSInteger const kMinutesPerDay = 24 * 60;
     return [cal dateFromComponents: comps];
 }
 
+// "yyyy-MM-dd" -> year/month/day components, or nil if malformed / not a real date
++ (NSDateComponents*)dateComponentsFromDateString:(id)string {
+    if (![string isKindOfClass: [NSString class]]) return nil;
+    NSArray<NSString*>* parts = [string componentsSeparatedByString: @"-"];
+    if (parts.count != 3 || parts[0].length != 4 || parts[1].length != 2 || parts[2].length != 2) return nil;
+    NSCharacterSet* nonDigits = [[NSCharacterSet decimalDigitCharacterSet] invertedSet];
+    for (NSString* part in parts) {
+        if ([part rangeOfCharacterFromSet: nonDigits].location != NSNotFound) return nil;
+    }
+    NSDateComponents* comps = [NSDateComponents new];
+    comps.year = parts[0].integerValue;
+    comps.month = parts[1].integerValue;
+    comps.day = parts[2].integerValue;
+    if (comps.month < 1 || comps.month > 12 || comps.day < 1 || comps.day > 31) return nil;
+    // reject dates like 2026-02-31 that would silently roll over
+    NSCalendar* cal = [self calendar];
+    NSDate* date = [cal dateFromComponents: comps];
+    if (date == nil || [cal component: NSCalendarUnitDay fromDate: date] != comps.day) return nil;
+    return comps;
+}
+
++ (NSString*)dateStringForDate:(NSDate*)date {
+    NSDateComponents* comps = [[self calendar] components: NSCalendarUnitYear | NSCalendarUnitMonth | NSCalendarUnitDay fromDate: date];
+    return [NSString stringWithFormat: @"%04ld-%02ld-%02ld", (long)comps.year, (long)comps.month, (long)comps.day];
+}
+
++ (NSString*)dateStringFromUserString:(NSString*)string atDate:(NSDate*)now {
+    NSString* str = [[string lowercaseString] stringByTrimmingCharactersInSet: [NSCharacterSet whitespaceCharacterSet]];
+    NSCalendar* cal = [self calendar];
+    if ([str isEqualToString: @"today"]) return [self dateStringForDate: now];
+    if ([str isEqualToString: @"tomorrow"]) return [self dateStringForDate: [cal dateByAddingUnit: NSCalendarUnitDay value: 1 toDate: now options: 0]];
+    return [self dateComponentsFromDateString: str] != nil ? str : nil;
+}
+
+// start and end of a one-off schedule's single window
++ (BOOL)oneOffWindowForSchedule:(NSDictionary*)schedule start:(NSDate**)start end:(NSDate**)end {
+    NSDateComponents* day = [self dateComponentsFromDateString: schedule[SCScheduleKeyDate]];
+    NSInteger startMinute = [schedule[SCScheduleKeyStartMinute] integerValue];
+    NSInteger endMinute = [schedule[SCScheduleKeyEndMinute] integerValue];
+    if (day == nil || startMinute == endMinute) return NO;
+    NSCalendar* cal = [self calendar];
+    NSDate* dayDate = [cal dateFromComponents: day];
+    *start = [self dateOnDay: dayDate dayOffset: 0 minute: startMinute calendar: cal];
+    *end = [self dateOnDay: dayDate dayOffset: (endMinute <= startMinute ? 1 : 0) minute: endMinute calendar: cal];
+    return YES;
+}
+
++ (BOOL)oneOffScheduleIsExpired:(NSDictionary*)schedule atDate:(NSDate*)date {
+    NSDate *start, *end;
+    if (![self isOneOffSchedule: schedule] || ![self oneOffWindowForSchedule: schedule start: &start end: &end]) return NO;
+    return [end compare: date] != NSOrderedDescending;
+}
+
++ (NSArray<NSDictionary*>*)schedulesByRemovingExpiredOneOffs:(NSArray*)schedules atDate:(NSDate*)date {
+    NSMutableArray* kept = [NSMutableArray array];
+    for (NSDictionary* schedule in schedules) {
+        if (![schedule isKindOfClass: [NSDictionary class]] || ![self oneOffScheduleIsExpired: schedule atDate: date]) {
+            [kept addObject: schedule];
+        }
+    }
+    return kept;
+}
+
++ (NSInteger)windowMinutesForSchedule:(NSDictionary*)schedule {
+    NSInteger start = [schedule[SCScheduleKeyStartMinute] integerValue];
+    NSInteger end = [schedule[SCScheduleKeyEndMinute] integerValue];
+    return ((end - start) % kMinutesPerDay + kMinutesPerDay) % kMinutesPerDay;
+}
+
++ (BOOL)changeIsPasswordlessFromSchedules:(NSArray*)oldSchedules toSchedules:(NSArray*)newSchedules atDate:(NSDate*)date reason:(NSString**)reason {
+    NSString* why = nil;
+    for (NSDictionary* newSchedule in newSchedules) {
+        NSDictionary* oldSchedule = [self scheduleWithID: newSchedule[SCScheduleKeyID] inSchedules: oldSchedules];
+        BOOL addsRestriction = NO;
+        if (oldSchedule == nil) {
+            addsRestriction = [newSchedule[SCScheduleKeyEnabled] boolValue];
+        } else {
+            BOOL oldEnabled = [oldSchedule[SCScheduleKeyEnabled] boolValue];
+            BOOL newEnabled = [newSchedule[SCScheduleKeyEnabled] boolValue];
+            BOOL sameTiming = [[NSSet setWithArray: [self normalizedWeekdays: newSchedule[SCScheduleKeyWeekdays]]] isEqualToSet: [NSSet setWithArray: [self normalizedWeekdays: oldSchedule[SCScheduleKeyWeekdays]]]]
+                && ((newSchedule[SCScheduleKeyDate] == nil && oldSchedule[SCScheduleKeyDate] == nil) || [newSchedule[SCScheduleKeyDate] isEqual: oldSchedule[SCScheduleKeyDate]])
+                && [newSchedule[SCScheduleKeyStartMinute] integerValue] == [oldSchedule[SCScheduleKeyStartMinute] integerValue]
+                && [newSchedule[SCScheduleKeyEndMinute] integerValue] == [oldSchedule[SCScheduleKeyEndMinute] integerValue];
+            NSSet* oldSites = [NSSet setWithArray: oldSchedule[SCScheduleKeyBlocklist] ?: @[]];
+            NSSet* newSites = [NSSet setWithArray: newSchedule[SCScheduleKeyBlocklist] ?: @[]];
+            BOOL sameSettings = (newSchedule[SCScheduleKeyBlockSettings] == nil && oldSchedule[SCScheduleKeyBlockSettings] == nil)
+                || [newSchedule[SCScheduleKeyBlockSettings] isEqual: oldSchedule[SCScheduleKeyBlockSettings]];
+
+            if (oldEnabled && !newEnabled) { why = @"turns off a schedule"; break; }
+            if (!sameTiming) { why = @"changes a schedule's days or times"; break; }
+            if (![oldSites isSubsetOfSet: newSites]) { why = @"removes sites from a schedule"; break; }
+            if (!sameSettings) { why = @"changes a schedule's block settings"; break; }
+            addsRestriction = (!oldEnabled && newEnabled) || (newEnabled && ![newSites isSubsetOfSet: oldSites]);
+        }
+        if (addsRestriction && [self windowMinutesForSchedule: newSchedule] > SCPasswordlessMaxMinutes) {
+            why = [NSString stringWithFormat: @"adds a block window longer than %ld minutes", (long)SCPasswordlessMaxMinutes];
+            break;
+        }
+    }
+    if (why == nil) {
+        for (NSDictionary* oldSchedule in oldSchedules) {
+            if (![oldSchedule isKindOfClass: [NSDictionary class]]) continue;
+            if ([self scheduleWithID: oldSchedule[SCScheduleKeyID] inSchedules: newSchedules] == nil
+                && ![self oneOffScheduleIsExpired: oldSchedule atDate: date]) {
+                why = @"removes a schedule";
+                break;
+            }
+        }
+    }
+    if (reason != NULL) *reason = why;
+    return why == nil;
+}
+
 + (NSDate*)activeWindowEndForSchedule:(NSDictionary*)schedule atDate:(NSDate*)date {
     if (![schedule[SCScheduleKeyEnabled] boolValue]) return nil;
+    if ([self isOneOffSchedule: schedule]) {
+        NSDate *start, *end;
+        if (![self oneOffWindowForSchedule: schedule start: &start end: &end]) return nil;
+        BOOL inWindow = [date compare: start] != NSOrderedAscending && [date compare: end] == NSOrderedAscending;
+        return inWindow ? end : nil;
+    }
     NSSet* weekdays = [NSSet setWithArray: [self normalizedWeekdays: schedule[SCScheduleKeyWeekdays]]];
     NSInteger startMinute = [schedule[SCScheduleKeyStartMinute] integerValue];
     NSInteger endMinute = [schedule[SCScheduleKeyEndMinute] integerValue];
@@ -230,6 +371,11 @@ static NSInteger const kMinutesPerDay = 24 * 60;
 
 + (NSDate*)nextWindowStartForSchedule:(NSDictionary*)schedule afterDate:(NSDate*)date {
     if (![schedule[SCScheduleKeyEnabled] boolValue]) return nil;
+    if ([self isOneOffSchedule: schedule]) {
+        NSDate *start, *end;
+        if (![self oneOffWindowForSchedule: schedule start: &start end: &end]) return nil;
+        return [start compare: date] == NSOrderedDescending ? start : nil;
+    }
     NSSet* weekdays = [NSSet setWithArray: [self normalizedWeekdays: schedule[SCScheduleKeyWeekdays]]];
     if (weekdays.count == 0) return nil;
     NSInteger startMinute = [schedule[SCScheduleKeyStartMinute] integerValue];
@@ -262,6 +408,17 @@ static NSInteger const kMinutesPerDay = 24 * 60;
 #pragma mark - Descriptions
 
 + (NSString*)daysDescriptionForSchedule:(NSDictionary*)schedule {
+    if ([self isOneOffSchedule: schedule]) {
+        NSDateComponents* comps = [self dateComponentsFromDateString: schedule[SCScheduleKeyDate]];
+        if (comps == nil) return schedule[SCScheduleKeyDate];
+        NSCalendar* cal = [NSCalendar currentCalendar];
+        NSDate* day = [cal dateFromComponents: comps];
+        if ([cal isDateInToday: day]) return @"Today only";
+        if ([cal isDateInTomorrow: day]) return @"Tomorrow only";
+        NSDateFormatter* formatter = [NSDateFormatter new];
+        formatter.dateFormat = @"EEE, MMM d";
+        return [formatter stringFromDate: day];
+    }
     NSArray<NSNumber*>* days = [self normalizedWeekdays: schedule[SCScheduleKeyWeekdays]];
     NSSet* set = [NSSet setWithArray: days];
     if (set.count == 7) return @"Every day";

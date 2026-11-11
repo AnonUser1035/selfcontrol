@@ -436,8 +436,9 @@ static NSTextField* SCLabel(NSString* text, NSRect frame) {
     NSDictionary* selected = [self selectedSchedule];
     BOOL selectedActive = selected != nil && [SCScheduleUtilities scheduleIsActive: selected atDate: [NSDate date]];
     self.addButton.enabled = !self.busy && self.schedules.count < SCScheduleMaxCount;
-    // an active schedule can still get more sites, so Edit stays available; Remove doesn't
-    self.editButton.enabled = !self.busy && selected != nil;
+    // an active schedule can still get more sites, so Edit stays available; Remove doesn't.
+    // one-off schedules (e.g. from the MCP server) can't be edited here, only removed or toggled.
+    self.editButton.enabled = !self.busy && selected != nil && ![SCScheduleUtilities isOneOffSchedule: selected];
     self.removeButton.enabled = !self.busy && selected != nil && !selectedActive;
     self.removeButton.toolTip = selectedActive ? @"This schedule is active. You can remove it after it ends." : nil;
 }
@@ -547,7 +548,7 @@ static NSTextField* SCLabel(NSString* text, NSRect frame) {
 
 - (IBAction)editSchedule:(id)sender {
     NSDictionary* selected = [self selectedSchedule];
-    if (self.busy || selected == nil) return;
+    if (self.busy || selected == nil || [SCScheduleUtilities isOneOffSchedule: selected]) return;
     ScheduleEditorController* editor = [[ScheduleEditorController alloc] initWithSchedule: selected
                                                                          defaultBlocklist: @[]
                                                                             blockSettings: [self currentBlockSettings]];

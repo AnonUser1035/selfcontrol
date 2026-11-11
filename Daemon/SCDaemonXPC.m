@@ -8,13 +8,20 @@
 #import "SCDaemonXPC.h"
 #import "SCDaemonBlockMethods.h"
 #import "SCXPCAuthorization.h"
+#import "SCScheduleUtilities.h"
+
+// fork: requests that only make blocking stricter and last at most this long can use the passwordless rights
+static NSTimeInterval SCPasswordlessMaxSeconds(void) { return SCPasswordlessMaxMinutes * 60 + 60; /* a minute of slack for clock skew */ }
 
 @implementation SCDaemonXPC
 
 - (void)startBlockWithControllingUID:(uid_t)controllingUID blocklist:(NSArray<NSString*>*)blocklist isAllowlist:(BOOL)isAllowlist endDate:(NSDate*)endDate blockSettings:(NSDictionary*)blockSettings authorization:(NSData *)authData reply:(void(^)(NSError* error))reply {
     NSLog(@"XPC method called: startBlockWithControllingUID");
-    
-    NSError* error = [SCXPCAuthorization checkAuthorization: authData command: _cmd];
+
+    // allowlist blocks cut off nearly everything, so they always need the password
+    BOOL passwordless = !isAllowlist && [endDate timeIntervalSinceNow] <= SCPasswordlessMaxSeconds();
+    NSString* right = passwordless ? SCAuthRightStartShortBlock : [SCXPCAuthorization authorizationRightForCommand: _cmd];
+    NSError* error = [SCXPCAuthorization checkAuthorization: authData rightName: right];
     if (error != nil) {
         if (![SCMiscUtilities errorIsAuthCanceled: error]) {
             NSLog(@"ERROR: XPC authorization failed due to error %@", error);
@@ -31,8 +38,11 @@
 
 - (void)updateBlocklist:(NSArray<NSString*>*)newBlocklist authorization:(NSData *)authData reply:(void(^)(NSError* error))reply {
     NSLog(@"XPC method called: updateBlocklist");
-    
-    NSError* error = [SCXPCAuthorization checkAuthorization: authData command: _cmd];
+
+    NSDate* currentEndDate = [[SCSettings sharedSettings] valueForKey: @"BlockEndDate"];
+    BOOL passwordless = [currentEndDate isKindOfClass: [NSDate class]] && [currentEndDate timeIntervalSinceNow] <= SCPasswordlessMaxSeconds();
+    NSString* right = passwordless ? SCAuthRightTightenShortBlock : [SCXPCAuthorization authorizationRightForCommand: _cmd];
+    NSError* error = [SCXPCAuthorization checkAuthorization: authData rightName: right];
     if (error != nil) {
         if (![SCMiscUtilities errorIsAuthCanceled: error]) {
             NSLog(@"ERROR: XPC authorization failed due to error %@", error);
@@ -49,8 +59,10 @@
 
 - (void)updateBlockEndDate:(NSDate*)newEndDate authorization:(NSData *)authData reply:(void(^)(NSError* error))reply {
     NSLog(@"XPC method called: updateBlockEndDate");
-    
-    NSError* error = [SCXPCAuthorization checkAuthorization: authData command: _cmd];
+
+    BOOL passwordless = [newEndDate timeIntervalSinceNow] <= SCPasswordlessMaxSeconds();
+    NSString* right = passwordless ? SCAuthRightTightenShortBlock : [SCXPCAuthorization authorizationRightForCommand: _cmd];
+    NSError* error = [SCXPCAuthorization checkAuthorization: authData rightName: right];
     if (error != nil) {
         if (![SCMiscUtilities errorIsAuthCanceled: error]) {
             NSLog(@"ERROR: XPC authorization failed due to error %@", error);
@@ -68,7 +80,16 @@
 - (void)updateSchedules:(NSArray<NSDictionary*>*)schedules authorization:(NSData *)authData reply:(void(^)(NSError* error))reply {
     NSLog(@"XPC method called: updateSchedules");
 
-    NSError* error = [SCXPCAuthorization checkAuthorization: authData command: _cmd];
+    NSDate* now = [NSDate date];
+    NSArray* newSchedules = [SCScheduleUtilities schedulesByRemovingExpiredOneOffs: schedules atDate: now];
+    NSString* passwordReason = nil;
+    BOOL passwordless = [SCScheduleUtilities changeIsPasswordlessFromSchedules: [[SCSettings sharedSettings] valueForKey: @"Schedules"]
+                                                                   toSchedules: newSchedules
+                                                                        atDate: now
+                                                                        reason: &passwordReason];
+    if (!passwordless) NSLog(@"INFO: schedule change needs the admin password because it %@", passwordReason);
+    NSString* right = passwordless ? SCAuthRightTightenSchedules : [SCXPCAuthorization authorizationRightForCommand: _cmd];
+    NSError* error = [SCXPCAuthorization checkAuthorization: authData rightName: right];
     if (error != nil) {
         if (![SCMiscUtilities errorIsAuthCanceled: error]) {
             NSLog(@"ERROR: XPC authorization failed due to error %@", error);
@@ -77,7 +98,7 @@
         return;
     }
 
-    [SCDaemonBlockMethods updateSchedules: schedules authorization: authData reply: reply];
+    [SCDaemonBlockMethods updateSchedules: newSchedules requirePasswordlessChange: passwordless reply: reply];
 }
 
 // Part of the HelperToolProtocol.  Returns the version number of the tool.  Note that never

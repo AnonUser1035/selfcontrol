@@ -22,10 +22,16 @@ static NSDictionary* kAuthorizationRuleAuthenticateAsAdmin2MinTimeout;
     // Check that the client denoted by authData is allowed to run the specified command.
     // authData is expected to be an NSData with an AuthorizationExternalForm embedded inside.
 {
-    #pragma unused(authData)
+    return [self checkAuthorization: authData rightName: [SCXPCAuthorization authorizationRightForCommand: command]];
+}
+
++ (NSError *)checkAuthorization:(NSData *)authData rightName:(NSString *)rightName
+{
     AuthorizationRef            authRef;
 
-    assert(command != nil);
+    if (rightName == nil) {
+        return [NSError errorWithDomain: NSOSStatusErrorDomain code: errAuthorizationInvalidSet userInfo: nil];
+    }
     
     authRef = NULL;
 
@@ -46,8 +52,7 @@ static NSDictionary* kAuthorizationRuleAuthenticateAsAdmin2MinTimeout;
     AuthorizationRights rights   = { 1, &oneRight };
     AuthorizationFlags flags = kAuthorizationFlagDefaults | kAuthorizationFlagExtendRights | kAuthorizationFlagInteractionAllowed;
 
-    oneRight.name = [[SCXPCAuthorization authorizationRightForCommand:command] UTF8String];
-    assert(oneRight.name != NULL);
+    oneRight.name = [rightName UTF8String];
     
     OSStatus authStatus = AuthorizationCopyRights(
         authRef,
@@ -128,9 +133,32 @@ static NSDictionary* kAuthorizationRuleAuthenticateAsAdmin2MinTimeout;
     return sCommandInfo;
 }
 
+// fork: rights for actions that only make blocking stricter and are short (see SCPasswordlessMaxMinutes).
+// The daemon picks these instead of the admin rights above when a request qualifies. They default to
+// "allow" so agents and scripts can start focus blocks without a password; to require the password again:
+//   sudo security authorizationdb write org.eyebeam.SelfControl.startShortBlock authenticate-admin
+NSString* const SCAuthRightStartShortBlock = @"org.eyebeam.SelfControl.startShortBlock";
+NSString* const SCAuthRightTightenShortBlock = @"org.eyebeam.SelfControl.tightenShortBlock";
+NSString* const SCAuthRightTightenSchedules = @"org.eyebeam.SelfControl.tightenSchedules";
+
++ (NSArray<NSDictionary*>*)passwordlessRightInfo {
+    NSDictionary* allowRule = @{ @"class": @"allow", @"version": @1 };
+    return @[
+        @{ kCommandKeyAuthRightName: SCAuthRightStartShortBlock, kCommandKeyAuthRightDefault: allowRule,
+           kCommandKeyAuthRightDesc: @"SelfControl wants to start a short block." },
+        @{ kCommandKeyAuthRightName: SCAuthRightTightenShortBlock, kCommandKeyAuthRightDefault: allowRule,
+           kCommandKeyAuthRightDesc: @"SelfControl wants to extend or add sites to a short block." },
+        @{ kCommandKeyAuthRightName: SCAuthRightTightenSchedules, kCommandKeyAuthRightDefault: allowRule,
+           kCommandKeyAuthRightDesc: @"SelfControl wants to add to your block schedules." },
+    ];
+}
+
 + (void)enumerateRightsUsingBlock:(void (^)(NSString * authRightName, id authRightDefault, NSString * authRightDesc))block
     // Calls the supplied block with information about each known authorization right..
 {
+    for (NSDictionary* info in [self passwordlessRightInfo]) {
+        block(info[kCommandKeyAuthRightName], info[kCommandKeyAuthRightDefault], info[kCommandKeyAuthRightDesc]);
+    }
     [self.commandInfo enumerateKeysAndObjectsUsingBlock:^(id key, id obj, BOOL *stop) {
         #pragma unused(key)
         #pragma unused(stop)
@@ -179,7 +207,9 @@ static NSDictionary* kAuthorizationRuleAuthenticateAsAdmin2MinTimeout;
                 NULL,                                       // bundle (NULL implies main bundle)
                 CFSTR("SCXPCAuthorization")                             // localeTableName
             );
-            assert(blockErr == errAuthorizationSuccess);
+            if (blockErr != errAuthorizationSuccess) {
+                NSLog(@"WARNING: couldn't add auth right %@ (error %d)", authRightName, (int)blockErr);
+            }
         } else {
             // A right already exists (err == noErr) or any other error occurs, we
             // assume that it has been set up in advance by the system administrator or

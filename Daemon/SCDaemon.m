@@ -11,6 +11,7 @@
 #import"SCDaemonBlockMethods.h"
 #import "SCFileWatcher.h"
 #import "SCScheduleUtilities.h"
+#import "SCXPCAuthorization.h"
 
 static NSString* serviceName = @"org.eyebeam.selfcontrold";
 float const INACTIVITY_LIMIT_SECS = 60 * 2; // 2 minutes
@@ -56,6 +57,14 @@ NSTimeInterval const SCHEDULE_CHECK_INTERVAL_SECS = 15.0;
 }
 
 - (void)start {
+    // fork: make sure our authorization rights (including the passwordless ones) exist.
+    // We're root, so adding rights doesn't prompt.
+    AuthorizationRef authRef = NULL;
+    if (AuthorizationCreate(NULL, kAuthorizationEmptyEnvironment, kAuthorizationFlagDefaults, &authRef) == errAuthorizationSuccess) {
+        [SCXPCAuthorization setupAuthorizationRights: authRef];
+        AuthorizationFree(authRef, kAuthorizationFlagDefaults);
+    }
+
     [self.listener resume];
 
     // if there's any evidence of a block (i.e. an official one running,
@@ -132,13 +141,9 @@ NSTimeInterval const SCHEDULE_CHECK_INTERVAL_SECS = 15.0;
                 return;
             }
             
-            // fork: stay alive while any schedule is enabled, so scheduled blocks can start on time
-            if ([SCScheduleUtilities anyEnabledSchedules: [[SCSettings sharedSettings] valueForKey: @"Schedules"]]) {
-                return;
-            }
-
-            NSLog(@"Daemon inactive for more than %f seconds, exiting!", INACTIVITY_LIMIT_SECS);
-            [SCHelperToolUtilities unloadDaemonJob];
+            // fork: the daemon stays loaded permanently instead of unloading when idle. Reinstalling it
+            // needs an admin password, and schedules / passwordless focus blocks need it to be running.
+            return;
         }
     }];
 }

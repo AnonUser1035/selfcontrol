@@ -32,7 +32,9 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)checkBlockIntegrity;
 
 // fork: recurring scheduled blocks
-+ (void)updateSchedules:(NSArray<NSDictionary*>*)schedules authorization:(NSData *)authData reply:(void(^)(NSError* error))reply;
+// requirePasswordlessChange: the caller was only authorized for a passwordless (stricter-only) change,
+// so re-check that under the lock in case the schedules changed in between
++ (void)updateSchedules:(NSArray<NSDictionary*>*)schedules requirePasswordlessChange:(BOOL)requirePasswordless reply:(void(^)(NSError* error))reply;
 // starts or extends a block if any schedule's window is active right now. Called on a timer by SCDaemon.
 + (void)checkSchedules;
 

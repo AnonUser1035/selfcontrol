@@ -33,6 +33,7 @@
 #import "SCUIUtilities.h"
 #import <TransformerKit/NSValueTransformer+TransformerKit.h>
 #import "ScheduleWindowController.h"
+#import "SCScheduleUtilities.h"
 
 @interface AppController () {}
 
@@ -641,7 +642,16 @@
         }
 		[self refreshUserInterface];
 
-        [self.xpc installDaemon:^(NSError * _Nonnull error) {
+        // fork: short blocks don't need an admin password, so don't reinstall the helper (which would ask
+        // for one) unless it's missing or out of date. Long blocks keep upstream's install-and-authorize flow.
+        NSInteger requestedMinutes = [[self->defaults_ valueForKey: @"BlockDuration"] integerValue];
+        BOOL shortBlock = ![self->defaults_ boolForKey: @"BlockAsWhitelist"] && requestedMinutes <= SCPasswordlessMaxMinutes;
+        SCXPCClient* xpc = self.xpc;
+        void (^prepareDaemon)(void(^)(NSError*)) = shortBlock
+            ? ^(void(^callback)(NSError*)) { [xpc ensureDaemonInstalled: callback]; }
+            : ^(void(^callback)(NSError*)) { [xpc installDaemon: callback]; };
+
+        prepareDaemon(^(NSError * _Nonnull error) {
             if (error != nil) {
                 [SCUIUtilities presentError: error];
                 self.addingBlock = false;
@@ -690,7 +700,7 @@
                     }];
                 }];
             }
-        }];
+        });
 	}
 }
 
