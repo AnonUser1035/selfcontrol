@@ -42,6 +42,9 @@
 }
 
 + (BOOL)errorReportingEnabled {
+#ifdef SC_NO_SENTRY
+    return NO;
+#else
 #ifdef TESTING
     // don't report to Sentry while unit-testing!
     if ([[NSUserDefaults standardUserDefaults] boolForKey: @"isTest"]) {
@@ -55,10 +58,16 @@
         // since we're root, we've gotta see what's in SCSettings (where the user's defaults will have been copied)
         return [[SCSettings sharedSettings] boolForKey: @"EnableErrorReporting"];
     }
+#endif
 }
 
 // returns YES if we turned on error reporting based on the prompt return
 + (BOOL)showErrorReportingPromptIfNeeded {
+#ifdef SC_NO_SENTRY
+    // fork: there's no error reporting to opt into. Never show the prompt; in the CLI it was an
+    // invisible modal that hung the process on the first error.
+    return NO;
+#else
     // no need to show the prompt if we're root (aka in the CLI/daemon), or already enabled error reporting, or if the user already dismissed it
     if (!geteuid()) return NO;
     if ([SCSentry errorReportingEnabled]) return NO;
@@ -95,6 +104,7 @@
     } // if the modal exited some other way, do nothing
     
     return NO;
+#endif
 }
 
 + (void)updateDefaultsContext {
