@@ -38,16 +38,23 @@ static void SCPrintScheduleUsage(void) {
     printf("    add (--days <days> | --date <date>) (--start <time> --end <time> | --windows <list>)\n");
     printf("        [--name <name>] [--sites <a.com,b.com> | --blocklist <file>] [--json]\n");
     printf("        days:    mon-fri, weekdays, weekends, daily, sat,sun, fri-mon, ... (repeats weekly)\n");
-    printf("        date:    today, tomorrow or 2026-11-12 (one-off: deleted once it's over)\n");
+    printf("        date:    today, tomorrow, fri, next mon or 2026-11-12 (one-off: deleted once it's over)\n");
     printf("        times:   09:00, 9:30pm, 23:00. If end <= start, the block runs past midnight.\n");
     printf("        windows: 10:00-12:00,14:00-16:30 (adds one schedule per window)\n");
     printf("        sites default to your current SelfControl blocklist.\n\n");
+    printf("    edit <id|name> [--days <days> | --date <date>] [--start <time>] [--end <time>] [--name <name>] [--json]\n");
+    printf("        change when a schedule runs (sites and settings stay the same)\n\n");
+    printf("    skip <id|name> --date <date>     skip one day of a recurring schedule\n");
+    printf("    unskip <id|name> --date <date>\n");
     printf("    remove <id|name>\n");
     printf("    enable <id|name>\n");
     printf("    disable <id|name>\n\n");
+    printf("    --no-password: fail instead of asking for the administrator password (for scripts and agents)\n\n");
     printf("Schedules can't be removed, disabled or shortened while they're active.\n");
-    printf("Adding schedules of up to %ld minutes per window doesn't need a password.\n", (long)SCPasswordlessMaxMinutes);
-    printf("Anything else (removing, disabling, editing, longer windows) asks for an administrator password.\n");
+    printf("No password is needed to:\n");
+    printf("  - add or lengthen restriction, as long as each window is at most %ld minutes, or\n", (long)SCPasswordlessMaxMinutes);
+    printf("  - remove, shorten, skip or disable a schedule while it's more than %ld hours away.\n", (long)(SCScheduleChangeNoticeMinutes / 60));
+    printf("Anything else asks for an administrator password.\n");
 }
 
 static NSString* SCOptionValue(NSArray<NSString*>* args, NSString* name) {
@@ -80,46 +87,70 @@ static NSDictionary* SCFindSchedule(NSArray* schedules, NSString* query) {
     return nil;
 }
 
-// makes sure the daemon is installed, then sends the new schedules (asks for an admin password)
-static int SCPushSchedules(NSArray* schedules) {
+// makes sure the daemon is installed, then sends the new schedules (may ask for an admin password).
+// passwordlessOnly: never prompt; fail with EX_NOPERM if the change (or a helper install) would need the password.
+static int SCPushSchedules(NSArray* schedules, BOOL passwordlessOnly) {
+    NSArray* currentSchedules = [[SCSettings sharedSettings] valueForKey: @"Schedules"];
     NSError* validationErr = [SCScheduleUtilities validateSchedules: schedules];
     if (validationErr == nil) {
-        validationErr = [SCScheduleUtilities validateChangeFromSchedules: [[SCSettings sharedSettings] valueForKey: @"Schedules"]
-                                                             toSchedules: schedules
-                                                                  atDate: [NSDate date]];
+        validationErr = [SCScheduleUtilities validateChangeFromSchedules: currentSchedules toSchedules: schedules atDate: [NSDate date]];
     }
     if (validationErr != nil) {
         fprintf(stderr, "Error: %s\n", validationErr.localizedDescription.UTF8String);
         return EX_DATAERR;
+    }
+    NSString* passwordReason = nil;
+    if (passwordlessOnly && ![SCScheduleUtilities changeIsPasswordlessFromSchedules: currentSchedules toSchedules: schedules atDate: [NSDate date] reason: &passwordReason]) {
+        fprintf(stderr, "Error: This needs your admin password because it %s.\n", passwordReason.UTF8String);
+        return EX_NOPERM;
     }
 
     SCXPCClient* xpc = [SCXPCClient new];
     dispatch_semaphore_t done = dispatch_semaphore_create(0);
     __block int result = EXIT_SUCCESS;
 
-    [xpc ensureDaemonInstalled:^(NSError* installErr) {
+    void (^ensureInstalled)(void(^)(NSError*)) = ^(void(^callback)(NSError*)) {
+        if (!passwordlessOnly) {
+            [xpc ensureDaemonInstalled: callback];
+            return;
+        }
+        // installing or upgrading the helper always asks for the password, so don't
+        [xpc getVersion:^(NSString* version, NSError* versionErr) {
+            if (versionErr == nil && [version isEqualToString: SELFCONTROL_VERSION_STRING]) {
+                callback(nil);
+            } else {
+                callback([NSError errorWithDomain: SCScheduleErrorDomain code: 33 userInfo: @{
+                    NSLocalizedDescriptionKey: @"The SelfControl helper isn't installed or is out of date, and installing it needs your admin password. Run `selfcontrol-cli install-helper` in Terminal once."
+                }]);
+            }
+        }];
+    };
+
+    ensureInstalled(^(NSError* installErr) {
         if (installErr != nil) {
-            if (![SCMiscUtilities errorIsAuthCanceled: installErr]) {
+            if ([installErr.domain isEqualToString: SCScheduleErrorDomain]) {
+                fprintf(stderr, "Error: %s\n", installErr.localizedDescription.UTF8String);
+            } else if (![SCMiscUtilities errorIsAuthCanceled: installErr]) {
                 fprintf(stderr, "Error: couldn't install the SelfControl helper: %s\n", installErr.localizedDescription.UTF8String);
             } else {
                 fprintf(stderr, "Cancelled.\n");
             }
-            result = EX_SOFTWARE;
+            result = passwordlessOnly ? EX_NOPERM : EX_SOFTWARE;
             dispatch_semaphore_signal(done);
             return;
         }
-        [xpc updateSchedules: schedules reply:^(NSError* updateErr) {
+        [xpc updateSchedules: schedules passwordlessOnly: passwordlessOnly reply:^(NSError* updateErr) {
             if (updateErr != nil) {
                 if ([SCMiscUtilities errorIsAuthCanceled: updateErr]) {
                     fprintf(stderr, "Cancelled.\n");
                 } else {
                     fprintf(stderr, "Error: %s\n", updateErr.localizedDescription.UTF8String);
                 }
-                result = EX_SOFTWARE;
+                result = ([updateErr.domain isEqualToString: SCScheduleErrorDomain] && updateErr.code == 32) ? EX_NOPERM : EX_SOFTWARE;
             }
             dispatch_semaphore_signal(done);
         }];
-    }];
+    });
 
     while (dispatch_semaphore_wait(done, DISPATCH_TIME_NOW)) {
         [[NSRunLoop currentRunLoop] runMode: NSDefaultRunLoopMode beforeDate: [NSDate dateWithTimeIntervalSinceNow: 0.05]];
@@ -155,6 +186,19 @@ static NSDictionary* SCScheduleJSON(NSDictionary* schedule, NSDate* now) {
     json[@"active"] = @(activeEnd != nil);
     json[@"activeUntil"] = SCISODate(activeEnd) ?: [NSNull null];
     json[@"nextStart"] = SCISODate([SCScheduleUtilities nextWindowStartForSchedule: schedule afterDate: now]) ?: [NSNull null];
+    json[@"windowMinutes"] = @([SCScheduleUtilities windowMinutesForSchedule: schedule]);
+    json[@"skipDates"] = [SCScheduleUtilities skipDatesForSchedule: schedule];
+    // removing/shortening it needs the password from this time on (null: never, it has no upcoming windows)
+    NSDate* locksAt = [SCScheduleUtilities lockDateForSchedule: schedule atDate: now];
+    json[@"locksAt"] = SCISODate(locksAt) ?: [NSNull null];
+    json[@"locked"] = @(locksAt != nil && [locksAt compare: now] != NSOrderedDescending);
+    // the windows in the next two weeks, so callers don't have to redo the weekday math
+    NSMutableArray* upcoming = [NSMutableArray array];
+    NSDate* horizon = [now dateByAddingTimeInterval: 14 * 24 * 3600];
+    for (NSArray<NSDate*>* window in [SCScheduleUtilities windowsForSchedule: schedule overlappingFrom: now to: horizon]) {
+        [upcoming addObject: @{ @"start": SCISODate(window[0]), @"end": SCISODate(window[1]) }];
+    }
+    json[@"upcomingWindows"] = upcoming;
     return json;
 }
 
@@ -187,6 +231,7 @@ static int SCRunStatusCommand(NSArray<NSString*>* args) {
             @"isAllowlist": @((BOOL)(running && [settings boolForKey: @"ActiveBlockAsWhitelist"])),
             @"activeBlocklist": running ? ([settings valueForKey: @"ActiveBlocklist"] ?: @[]) : @[],
             @"passwordlessMaxMinutes": @(SCPasswordlessMaxMinutes),
+            @"changeNoticeMinutes": @(SCScheduleChangeNoticeMinutes),
             @"schedules": SCSchedulesJSON(schedules)
         });
         return EXIT_SUCCESS;
@@ -230,6 +275,8 @@ static void SCPrintSchedules(NSArray* schedules) {
             NSDate* next = [SCScheduleUtilities nextWindowStartForSchedule: schedule afterDate: now];
             if (next != nil) note = [NSString stringWithFormat: @"  (next %@)", [formatter stringFromDate: next]];
         }
+        NSString* skips = [SCScheduleUtilities skipDescriptionForSchedule: schedule];
+        if (skips.length > 0) note = [note stringByAppendingFormat: @"  (%@)", skips];
         printf("%-9s %-9s %-26s %-34s %-6lu %s%s\n",
                [[schedule[SCScheduleKeyID] substringToIndex: 8] lowercaseString].UTF8String,
                status.UTF8String,
@@ -245,6 +292,7 @@ static int SCRunScheduleCommand(NSArray<NSString*>* args) {
     NSString* command = args.count > 0 ? args[0] : @"list";
     NSArray* schedules = [[SCSettings sharedSettings] valueForKey: @"Schedules"];
     if (![schedules isKindOfClass: [NSArray class]]) schedules = @[];
+    BOOL passwordlessOnly = [args containsObject: @"--no-password"];
 
     if ([command isEqualToString: @"list"]) {
         if ([args containsObject: @"--json"]) SCPrintJSON(SCSchedulesJSON(schedules));
@@ -276,7 +324,7 @@ static int SCRunScheduleCommand(NSArray<NSString*>* args) {
         } else {
             dateString = [SCScheduleUtilities dateStringFromUserString: dateArg atDate: now];
             if (dateString == nil) {
-                fprintf(stderr, "Error: couldn't understand date \"%s\" (try today, tomorrow or 2026-11-12).\n", dateArg.UTF8String);
+                fprintf(stderr, "Error: couldn't understand date \"%s\" (try today, tomorrow, fri or 2026-11-12).\n", dateArg.UTF8String);
                 return EX_USAGE;
             }
         }
@@ -333,7 +381,7 @@ static int SCRunScheduleCommand(NSArray<NSString*>* args) {
             }
             [added addObject: schedule];
         }
-        int result = SCPushSchedules([schedules arrayByAddingObjectsFromArray: added]);
+        int result = SCPushSchedules([schedules arrayByAddingObjectsFromArray: added], passwordlessOnly);
         if (result == EXIT_SUCCESS) {
             if (json) {
                 SCPrintJSON(SCSchedulesJSON(added));
@@ -342,6 +390,110 @@ static int SCRunScheduleCommand(NSArray<NSString*>* args) {
                     printf("Added: %s, %lu sites\n", [SCScheduleUtilities displayNameForSchedule: schedule].UTF8String, (unsigned long)blocklist.count);
                 }
             }
+        }
+        return result;
+    }
+
+    if ([command isEqualToString: @"edit"]) {
+        if (args.count < 2 || [args[1] hasPrefix: @"--"]) {
+            SCPrintScheduleUsage();
+            return EX_USAGE;
+        }
+        NSDictionary* target = SCFindSchedule(schedules, args[1]);
+        if (target == nil) return EX_DATAERR;
+        NSDate* now = [NSDate date];
+        NSString* daysArg = SCOptionValue(args, @"--days");
+        NSString* dateArg = SCOptionValue(args, @"--date");
+        NSString* startArg = SCOptionValue(args, @"--start");
+        NSString* endArg = SCOptionValue(args, @"--end");
+        NSString* nameArg = SCOptionValue(args, @"--name");
+        if ((daysArg != nil && dateArg != nil) || (daysArg == nil && dateArg == nil && startArg == nil && endArg == nil && nameArg == nil)) {
+            SCPrintScheduleUsage();
+            return EX_USAGE;
+        }
+
+        NSMutableDictionary* changed = [target mutableCopy];
+        if (daysArg != nil) {
+            NSArray<NSNumber*>* weekdays = [SCScheduleUtilities weekdaysFromString: daysArg];
+            if (weekdays == nil) {
+                fprintf(stderr, "Error: couldn't understand days \"%s\" (try mon-fri, weekends, daily, sat,sun).\n", daysArg.UTF8String);
+                return EX_USAGE;
+            }
+            changed[SCScheduleKeyWeekdays] = weekdays;
+            [changed removeObjectForKey: SCScheduleKeyDate];
+        }
+        if (dateArg != nil) {
+            NSString* dateString = [SCScheduleUtilities dateStringFromUserString: dateArg atDate: now];
+            if (dateString == nil) {
+                fprintf(stderr, "Error: couldn't understand date \"%s\" (try today, tomorrow, fri or 2026-11-12).\n", dateArg.UTF8String);
+                return EX_USAGE;
+            }
+            changed[SCScheduleKeyDate] = dateString;
+            changed[SCScheduleKeyWeekdays] = @[];
+            [changed removeObjectForKey: SCScheduleKeySkipDates];
+        }
+        for (NSArray* pair in @[@[startArg ?: [NSNull null], SCScheduleKeyStartMinute], @[endArg ?: [NSNull null], SCScheduleKeyEndMinute]]) {
+            if (pair[0] == [NSNull null]) continue;
+            NSInteger minute = [SCScheduleUtilities minuteFromTimeString: pair[0]];
+            if (minute < 0) {
+                fprintf(stderr, "Error: couldn't understand the time \"%s\" (try 09:00 or 9:30pm).\n", [pair[0] UTF8String]);
+                return EX_USAGE;
+            }
+            changed[pair[1]] = @(minute);
+        }
+        if (nameArg != nil) {
+            if (nameArg.length > 0) changed[SCScheduleKeyName] = nameArg; else [changed removeObjectForKey: SCScheduleKeyName];
+        }
+        if ([SCScheduleUtilities isOneOffSchedule: changed] && [SCScheduleUtilities oneOffScheduleIsExpired: changed atDate: now]) {
+            fprintf(stderr, "Error: that time has already passed.\n");
+            return EX_DATAERR;
+        }
+
+        NSMutableArray* updated = [schedules mutableCopy];
+        updated[[updated indexOfObjectIdenticalTo: target]] = changed;
+        int result = SCPushSchedules(updated, passwordlessOnly);
+        if (result == EXIT_SUCCESS) {
+            if ([args containsObject: @"--json"]) SCPrintJSON(SCSchedulesJSON(@[changed]));
+            else printf("Changed: %s, %s %s\n", [SCScheduleUtilities displayNameForSchedule: changed].UTF8String,
+                        [SCScheduleUtilities daysDescriptionForSchedule: changed].UTF8String, [SCScheduleUtilities timeDescriptionForSchedule: changed].UTF8String);
+        }
+        return result;
+    }
+
+    if ([command isEqualToString: @"skip"] || [command isEqualToString: @"unskip"]) {
+        NSString* dateArg = SCOptionValue(args, @"--date");
+        if (args.count < 2 || [args[1] hasPrefix: @"--"] || dateArg == nil) {
+            SCPrintScheduleUsage();
+            return EX_USAGE;
+        }
+        NSDictionary* target = SCFindSchedule(schedules, args[1]);
+        if (target == nil) return EX_DATAERR;
+        if ([SCScheduleUtilities isOneOffSchedule: target]) {
+            fprintf(stderr, "Error: \"%s\" is a one-off block; remove it instead of skipping a day.\n", [SCScheduleUtilities displayNameForSchedule: target].UTF8String);
+            return EX_USAGE;
+        }
+        NSString* dateString = [SCScheduleUtilities dateStringFromUserString: dateArg atDate: [NSDate date]];
+        if (dateString == nil) {
+            fprintf(stderr, "Error: couldn't understand date \"%s\" (try today, tomorrow, fri or 2026-11-12).\n", dateArg.UTF8String);
+            return EX_USAGE;
+        }
+        BOOL skip = [command isEqualToString: @"skip"];
+        if (skip && ![SCScheduleUtilities schedule: target hasWindowOnDateString: dateString]) {
+            fprintf(stderr, "Error: \"%s\" doesn't run on %s.\n", [SCScheduleUtilities displayNameForSchedule: target].UTF8String, dateString.UTF8String);
+            return EX_DATAERR;
+        }
+        NSMutableOrderedSet* skipDates = [NSMutableOrderedSet orderedSetWithArray: [SCScheduleUtilities skipDatesForSchedule: target]];
+        if (skip) [skipDates addObject: dateString]; else [skipDates removeObject: dateString];
+        NSMutableDictionary* changed = [target mutableCopy];
+        NSArray* sortedSkips = [skipDates.array sortedArrayUsingSelector: @selector(compare:)];
+        if (sortedSkips.count > 0) changed[SCScheduleKeySkipDates] = sortedSkips; else [changed removeObjectForKey: SCScheduleKeySkipDates];
+
+        NSMutableArray* updated = [schedules mutableCopy];
+        updated[[updated indexOfObjectIdenticalTo: target]] = changed;
+        int result = SCPushSchedules(updated, passwordlessOnly);
+        if (result == EXIT_SUCCESS) {
+            if ([args containsObject: @"--json"]) SCPrintJSON(SCSchedulesJSON(@[changed]));
+            else printf("%s %s on %s\n", skip ? "Skipping" : "No longer skipping", [SCScheduleUtilities displayNameForSchedule: target].UTF8String, dateString.UTF8String);
         }
         return result;
     }
@@ -364,7 +516,7 @@ static int SCRunScheduleCommand(NSArray<NSString*>* args) {
                 [updated addObject: changed];
             }
         }
-        int result = SCPushSchedules(updated);
+        int result = SCPushSchedules(updated, passwordlessOnly);
         if (result == EXIT_SUCCESS) {
             NSString* verb = [command isEqualToString: @"remove"] ? @"Removed" : ([command isEqualToString: @"enable"] ? @"Enabled" : @"Disabled");
             printf("%s: %s\n", verb.UTF8String, [SCScheduleUtilities displayNameForSchedule: target].UTF8String);
@@ -388,6 +540,24 @@ int main(int argc, char* argv[]) {
 
     @autoreleasepool {
         // fork: `selfcontrol-cli schedule ...` and `status` are handled separately from the legacy argument parser
+        if (argc >= 2 && strcmp(argv[1], "install-helper") == 0) {
+            SCXPCClient* xpc = [SCXPCClient new];
+            dispatch_semaphore_t done = dispatch_semaphore_create(0);
+            __block int result = EXIT_SUCCESS;
+            [xpc ensureDaemonInstalled:^(NSError* installErr) {
+                if (installErr != nil) {
+                    fprintf(stderr, "Error: couldn't install the SelfControl helper: %s\n", installErr.localizedDescription.UTF8String);
+                    result = EX_SOFTWARE;
+                } else {
+                    printf("SelfControl helper %s is installed.\n", SELFCONTROL_VERSION_STRING.UTF8String);
+                }
+                dispatch_semaphore_signal(done);
+            }];
+            while (dispatch_semaphore_wait(done, DISPATCH_TIME_NOW)) {
+                [[NSRunLoop currentRunLoop] runMode: NSDefaultRunLoopMode beforeDate: [NSDate dateWithTimeIntervalSinceNow: 0.05]];
+            }
+            exit(result);
+        }
         if (argc >= 2 && (strcmp(argv[1], "schedule") == 0 || strcmp(argv[1], "status") == 0)) {
             NSMutableArray<NSString*>* subArgs = [NSMutableArray array];
             for (int i = 2; i < argc; i++) [subArgs addObject: @(argv[i])];

@@ -340,7 +340,7 @@ static NSTextField* SCLabel(NSString* text, NSRect frame) {
     NSTextField* info = [NSTextField wrappingLabelWithString:
         @"Scheduled blocks start automatically, even when SelfControl is closed. If a block is already running, "
         @"it's extended to cover the schedule and the schedule's sites are added. A schedule can't be removed, "
-        @"turned off or shortened while it's active."];
+        @"turned off or shortened while it's active, and doing that less than 12 hours before it starts needs your password."];
     info.frame = NSMakeRect(20, bounds.size.height - 62, bounds.size.width - 40, 48);
     info.textColor = [NSColor secondaryLabelColor];
     info.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
@@ -564,7 +564,19 @@ static NSTextField* SCLabel(NSString* text, NSRect frame) {
 
     NSAlert* alert = [NSAlert new];
     alert.messageText = [NSString stringWithFormat: @"Remove \"%@\"?", [SCScheduleUtilities displayNameForSchedule: selected]];
-    alert.informativeText = @"This schedule will stop starting blocks.";
+    NSDate* now = [NSDate date];
+    NSDate* locksAt = [SCScheduleUtilities lockDateForSchedule: selected atDate: now];
+    if (locksAt != nil && [locksAt compare: now] != NSOrderedDescending) {
+        alert.informativeText = [NSString stringWithFormat: @"This schedule will stop starting blocks. It starts within %ld hours, so removing it needs your administrator password.", (long)(SCScheduleChangeNoticeMinutes / 60)];
+    } else if (locksAt != nil) {
+        NSDateFormatter* formatter = [NSDateFormatter new];
+        formatter.dateStyle = NSDateFormatterShortStyle;
+        formatter.timeStyle = NSDateFormatterShortStyle;
+        formatter.doesRelativeDateFormatting = YES;
+        alert.informativeText = [NSString stringWithFormat: @"This schedule will stop starting blocks. No password is needed until %@.", [formatter stringFromDate: locksAt]];
+    } else {
+        alert.informativeText = @"This schedule will stop starting blocks.";
+    }
     [alert addButtonWithTitle: @"Remove"];
     [alert addButtonWithTitle: @"Cancel"];
     [alert beginSheetModalForWindow: self.window completionHandler:^(NSModalResponse response) {
@@ -652,10 +664,17 @@ static NSTextField* SCLabel(NSString* text, NSRect frame) {
 
     NSColor* color = [NSColor labelColor];
     NSString* value = @"";
+    cell.toolTip = nil;
     if ([identifier isEqualToString: @"name"]) {
         value = schedule[SCScheduleKeyName] ?: @"";
     } else if ([identifier isEqualToString: @"days"]) {
         value = [SCScheduleUtilities daysDescriptionForSchedule: schedule];
+        NSString* skips = [SCScheduleUtilities skipDescriptionForSchedule: schedule];
+        if (skips.length > 0) {
+            NSUInteger count = [SCScheduleUtilities skipDatesForSchedule: schedule].count;
+            value = [value stringByAppendingFormat: @" (skips %lu day%@)", (unsigned long)count, count == 1 ? @"" : @"s"];
+            cell.toolTip = skips;
+        }
     } else if ([identifier isEqualToString: @"time"]) {
         value = [SCScheduleUtilities timeDescriptionForSchedule: schedule];
     } else if ([identifier isEqualToString: @"sites"]) {

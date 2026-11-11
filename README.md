@@ -12,10 +12,11 @@ SelfControl is a free and open-source application for macOS that lets you block 
 
 This fork adds **recurring scheduled blocks** (e.g. weekdays 9:00–17:00, or every night 23:00–07:00).
 
-- Schedules are stored and enforced by SelfControl's root daemon, so they start on time even when the app is closed, and survive reboots..
+- Schedules are stored and enforced by SelfControl's root daemon, so they start on time even when the app is closed, and survive reboots.
 - Each schedule keeps its own copy of the sites to block (defaulting to your blocklist), so emptying your main blocklist can't weaken a schedule.
 - If a block is already running when a schedule starts, the block is extended to the end of the schedule's window and the schedule's sites are added to it.
 - A schedule can't be removed, turned off or shortened while it's active. You can still add sites to it.
+- Less than 12 hours before a schedule starts, loosening it (removing, shortening, skipping that day) needs your admin password. Further out it doesn't.
 - If the Mac is asleep when a window starts, the block starts on wake. If the Mac is off, that window is skipped.
 
 Manage schedules from **SelfControl → Schedules…** (⌘⇧S) or the **Schedules…** button, or from the command line:
@@ -24,15 +25,22 @@ Manage schedules from **SelfControl → Schedules…** (⌘⇧S) or the **Schedu
 selfcontrol-cli schedule list
 selfcontrol-cli schedule add --name "Work" --days mon-fri --start 9:00 --end 17:00
 selfcontrol-cli schedule add --days sun-thu --start 23:00 --end 7:00 --sites reddit.com,youtube.com
+selfcontrol-cli schedule edit work --start 10:00
+selfcontrol-cli schedule skip work --date fri
 selfcontrol-cli schedule disable work
 selfcontrol-cli schedule remove work
 ```
 
-One-off blocks: `selfcontrol-cli schedule add --date today --windows 10:00-12:00,14:00-16:30` (deleted once over).
+One-off blocks on any day: `selfcontrol-cli schedule add --date fri --windows 10:00-12:00,14:00-16:30` (`--date` takes today, tomorrow, a weekday or 2026-11-20; one-offs are deleted once over).
 
-**Passwords.** Anything that only makes blocking stricter and lasts at most 4 hours doesn't ask for a password: starting a block, extending it, adding sites, or adding/enabling a schedule whose window is 4 hours or less. Anything that loosens blocking (removing, disabling or editing a schedule) or adds a longer restriction still asks for an administrator password. The daemon makes this decision, using separate authorization rights (`org.eyebeam.SelfControl.startShortBlock`, `tightenShortBlock`, `tightenSchedules`) that default to "allow"; set them to `authenticate-admin` with `security authorizationdb` to require the password again. The daemon also stays loaded permanently now, so it never needs reinstalling.
+**Passwords.** The daemon decides, and the rule is the same for the app, the CLI and agents. No password is needed to:
 
-**AI agents.** [`mcp/`](./mcp) has an MCP server so agents like Codex or Claude Code can start and schedule focus blocks of a fixed site list, within the 4-hour cap, but never stop one.
+- make blocking stricter with windows of at most 4 hours: start or extend a block, add sites, add or enable a schedule whose windows are 4 hours or less;
+- loosen a schedule (remove, disable, shorten, move, skip a day) as long as everything it takes away is more than 12 hours away.
+
+Everything else asks for an administrator password: loosening a schedule that's running or starts within 12 hours, or adding a longer restriction. The passwordless paths use separate authorization rights (`org.eyebeam.SelfControl.startShortBlock`, `tightenShortBlock`, `tightenSchedules`) that default to "allow"; set them to `authenticate-admin` with `security authorizationdb` to require the password again. The daemon stays loaded permanently, so it only needs (re)installing after an update: `selfcontrol-cli install-helper`.
+
+**AI agents.** [`mcp/`](./mcp) has an MCP server so agents like Codex or Claude Code can start, plan, move and cancel focus blocks of a fixed site list, within the same rules: 4-hour windows, and nothing running or starting within 12 hours can be cancelled.
 
 Other fork changes: builds with Xcode 27 / the macOS 27 SDK (deployment target 12.0), Sparkle auto-updates are off (they would replace this build with upstream's), and Sentry crash reporting is removed. To build it yourself you need your own signing certificate: replace the team ID `ST2ZP3Y3L5` throughout the project, the Info.plists and `Daemon/SCDaemon.m`, then follow the build steps below (`git submodule update --init` first). The privileged helper only works when the app, CLI and daemon are all signed by the same team.
 

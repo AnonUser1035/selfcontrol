@@ -30,6 +30,8 @@ NS_ASSUME_NONNULL_BEGIN
 // fork: replace the recurring block schedules. The daemon must already be installed
 // (call installDaemon first: it may have unloaded itself if no block or schedule was active).
 - (void)updateSchedules:(NSArray<NSDictionary*>*)schedules reply:(void(^)(NSError* error))reply;
+// passwordlessOnly: fail (SCScheduleErrorDomain code 32) instead of asking for the admin password
+- (void)updateSchedules:(NSArray<NSDictionary*>*)schedules passwordlessOnly:(BOOL)passwordlessOnly reply:(void(^)(NSError* error))reply;
 
 @end
 

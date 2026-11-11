@@ -16,9 +16,12 @@ NSString* const SCScheduleKeyEndMinute = @"EndMinute";
 NSString* const SCScheduleKeyBlocklist = @"Blocklist";
 NSString* const SCScheduleKeyBlockSettings = @"BlockSettings";
 NSString* const SCScheduleKeyDate = @"Date";
+NSString* const SCScheduleKeySkipDates = @"SkipDates";
 
 NSUInteger const SCScheduleMaxCount = 50;
 NSInteger const SCPasswordlessMaxMinutes = 4 * 60;
+NSInteger const SCScheduleChangeNoticeMinutes = 12 * 60;
+static NSUInteger const kMaxSkipDates = 366;
 
 static NSInteger const kMinutesPerDay = 24 * 60;
 
@@ -139,6 +142,18 @@ static NSInteger const kMinutesPerDay = 24 * 60;
         return [self errorWithCode: 11 description: @"Schedule has invalid block settings."];
     }
 
+    id skipDates = schedule[SCScheduleKeySkipDates];
+    if (skipDates != nil) {
+        if (![skipDates isKindOfClass: [NSArray class]] || [skipDates count] > kMaxSkipDates) {
+            return [self errorWithCode: 13 description: @"Schedule has invalid skipped days."];
+        }
+        for (id day in skipDates) {
+            if ([self dateComponentsFromDateString: day] == nil) {
+                return [self errorWithCode: 13 description: @"Schedule has an invalid skipped day."];
+            }
+        }
+    }
+
     return nil;
 }
 
@@ -174,7 +189,8 @@ static NSInteger const kMinutesPerDay = 24 * 60;
             || !((newSchedule[SCScheduleKeyDate] == nil && oldSchedule[SCScheduleKeyDate] == nil) || [newSchedule[SCScheduleKeyDate] isEqual: oldSchedule[SCScheduleKeyDate]])
             || [newSchedule[SCScheduleKeyStartMinute] integerValue] != [oldSchedule[SCScheduleKeyStartMinute] integerValue]
             || [newSchedule[SCScheduleKeyEndMinute] integerValue] != [oldSchedule[SCScheduleKeyEndMinute] integerValue]
-            || ![[NSSet setWithArray: oldSchedule[SCScheduleKeyBlocklist] ?: @[]] isSubsetOfSet: [NSSet setWithArray: newSchedule[SCScheduleKeyBlocklist] ?: @[]]];
+            || ![[NSSet setWithArray: oldSchedule[SCScheduleKeyBlocklist] ?: @[]] isSubsetOfSet: [NSSet setWithArray: newSchedule[SCScheduleKeyBlocklist] ?: @[]]]
+            || [self activeWindowEndForSchedule: newSchedule atDate: date] == nil; // e.g. today's window was skipped
 
         if (weakened) {
             NSDateFormatter* formatter = [NSDateFormatter new];
@@ -241,7 +257,19 @@ static NSInteger const kMinutesPerDay = 24 * 60;
     NSCalendar* cal = [self calendar];
     if ([str isEqualToString: @"today"]) return [self dateStringForDate: now];
     if ([str isEqualToString: @"tomorrow"]) return [self dateStringForDate: [cal dateByAddingUnit: NSCalendarUnitDay value: 1 toDate: now options: 0]];
-    return [self dateComponentsFromDateString: str] != nil ? str : nil;
+    if ([self dateComponentsFromDateString: str] != nil) return str;
+    // a weekday name: the next such day, today included
+    NSInteger weekday = [self weekdayFromToken: [str hasPrefix: @"next"] ? [[str substringFromIndex: 4] stringByTrimmingCharactersInSet: [NSCharacterSet whitespaceCharacterSet]] : str];
+    if (weekday == 0) return nil;
+    NSInteger todayWeekday = [cal component: NSCalendarUnitWeekday fromDate: now];
+    NSInteger offset = (weekday - todayWeekday + 7) % 7;
+    if (offset == 0 && [str hasPrefix: @"next"]) offset = 7;
+    return [self dateStringForDate: [self dateOnDay: now dayOffset: offset minute: 12 * 60 calendar: cal]];
+}
+
++ (NSDate*)dateForDateString:(NSString*)string {
+    NSDateComponents* comps = [self dateComponentsFromDateString: string];
+    return comps != nil ? [[self calendar] dateFromComponents: comps] : nil;
 }
 
 // start and end of a one-off schedule's single window
@@ -273,48 +301,168 @@ static NSInteger const kMinutesPerDay = 24 * 60;
     return kept;
 }
 
++ (NSArray<NSDictionary*>*)schedulesByPruningExpired:(NSArray*)schedules atDate:(NSDate*)date {
+    // a skipped window is over once its day is two days back (windows are shorter than a day)
+    NSCalendar* cal = [self calendar];
+    NSString* cutoff = [self dateStringForDate: [cal dateByAddingUnit: NSCalendarUnitDay value: -2 toDate: date options: 0]];
+    NSMutableArray* kept = [NSMutableArray array];
+    for (NSDictionary* schedule in [self schedulesByRemovingExpiredOneOffs: schedules atDate: date]) {
+        NSArray* skipDates = [schedule isKindOfClass: [NSDictionary class]] ? schedule[SCScheduleKeySkipDates] : nil;
+        if (![skipDates isKindOfClass: [NSArray class]]) {
+            [kept addObject: schedule];
+            continue;
+        }
+        NSMutableArray* fresh = [NSMutableArray array];
+        for (id day in skipDates) {
+            if (![day isKindOfClass: [NSString class]] || [(NSString*)day compare: cutoff] == NSOrderedDescending) [fresh addObject: day];
+        }
+        if (fresh.count == skipDates.count) {
+            [kept addObject: schedule];
+        } else {
+            NSMutableDictionary* pruned = [schedule mutableCopy];
+            if (fresh.count > 0) pruned[SCScheduleKeySkipDates] = fresh;
+            else [pruned removeObjectForKey: SCScheduleKeySkipDates];
+            [kept addObject: pruned];
+        }
+    }
+    return kept;
+}
+
++ (NSArray<NSString*>*)skipDatesForSchedule:(NSDictionary*)schedule {
+    NSArray* skipDates = schedule[SCScheduleKeySkipDates];
+    if (![skipDates isKindOfClass: [NSArray class]] || [self isOneOffSchedule: schedule]) return @[];
+    NSMutableSet* set = [NSMutableSet set];
+    for (id day in skipDates) {
+        if ([day isKindOfClass: [NSString class]]) [set addObject: day];
+    }
+    return [[set allObjects] sortedArrayUsingSelector: @selector(compare:)];
+}
+
++ (BOOL)schedule:(NSDictionary*)schedule hasWindowOnDateString:(NSString*)dateString {
+    if ([self isOneOffSchedule: schedule]) return [schedule[SCScheduleKeyDate] isEqual: dateString];
+    NSDate* day = [self dateForDateString: dateString];
+    if (day == nil) return NO;
+    NSInteger weekday = [[self calendar] component: NSCalendarUnitWeekday fromDate: day];
+    return [[self normalizedWeekdays: schedule[SCScheduleKeyWeekdays]] containsObject: @(weekday)];
+}
+
 + (NSInteger)windowMinutesForSchedule:(NSDictionary*)schedule {
     NSInteger start = [schedule[SCScheduleKeyStartMinute] integerValue];
     NSInteger end = [schedule[SCScheduleKeyEndMinute] integerValue];
     return ((end - start) % kMinutesPerDay + kMinutesPerDay) % kMinutesPerDay;
 }
 
-+ (BOOL)changeIsPasswordlessFromSchedules:(NSArray*)oldSchedules toSchedules:(NSArray*)newSchedules atDate:(NSDate*)date reason:(NSString**)reason {
-    NSString* why = nil;
-    for (NSDictionary* newSchedule in newSchedules) {
-        NSDictionary* oldSchedule = [self scheduleWithID: newSchedule[SCScheduleKeyID] inSchedules: oldSchedules];
-        BOOL addsRestriction = NO;
-        if (oldSchedule == nil) {
-            addsRestriction = [newSchedule[SCScheduleKeyEnabled] boolValue];
-        } else {
-            BOOL oldEnabled = [oldSchedule[SCScheduleKeyEnabled] boolValue];
-            BOOL newEnabled = [newSchedule[SCScheduleKeyEnabled] boolValue];
-            BOOL sameTiming = [[NSSet setWithArray: [self normalizedWeekdays: newSchedule[SCScheduleKeyWeekdays]]] isEqualToSet: [NSSet setWithArray: [self normalizedWeekdays: oldSchedule[SCScheduleKeyWeekdays]]]]
-                && ((newSchedule[SCScheduleKeyDate] == nil && oldSchedule[SCScheduleKeyDate] == nil) || [newSchedule[SCScheduleKeyDate] isEqual: oldSchedule[SCScheduleKeyDate]])
-                && [newSchedule[SCScheduleKeyStartMinute] integerValue] == [oldSchedule[SCScheduleKeyStartMinute] integerValue]
-                && [newSchedule[SCScheduleKeyEndMinute] integerValue] == [oldSchedule[SCScheduleKeyEndMinute] integerValue];
-            NSSet* oldSites = [NSSet setWithArray: oldSchedule[SCScheduleKeyBlocklist] ?: @[]];
-            NSSet* newSites = [NSSet setWithArray: newSchedule[SCScheduleKeyBlocklist] ?: @[]];
-            BOOL sameSettings = (newSchedule[SCScheduleKeyBlockSettings] == nil && oldSchedule[SCScheduleKeyBlockSettings] == nil)
-                || [newSchedule[SCScheduleKeyBlockSettings] isEqual: oldSchedule[SCScheduleKeyBlockSettings]];
-
-            if (oldEnabled && !newEnabled) { why = @"turns off a schedule"; break; }
-            if (!sameTiming) { why = @"changes a schedule's days or times"; break; }
-            if (![oldSites isSubsetOfSet: newSites]) { why = @"removes sites from a schedule"; break; }
-            if (!sameSettings) { why = @"changes a schedule's block settings"; break; }
-            addsRestriction = (!oldEnabled && newEnabled) || (newEnabled && ![newSites isSubsetOfSet: oldSites]);
+// pieces of `windows` not covered by any window in `cover`
+static NSArray<NSArray<NSDate*>*>* SCSubtractWindows(NSArray<NSArray<NSDate*>*>* windows, NSArray<NSArray<NSDate*>*>* cover) {
+    NSMutableArray* result = [NSMutableArray array];
+    for (NSArray<NSDate*>* window in windows) {
+        NSArray<NSArray<NSDate*>*>* pieces = @[window];
+        for (NSArray<NSDate*>* c in cover) {
+            NSMutableArray* next = [NSMutableArray array];
+            for (NSArray<NSDate*>* piece in pieces) {
+                if ([c[1] compare: piece[0]] != NSOrderedDescending || [c[0] compare: piece[1]] != NSOrderedAscending) {
+                    [next addObject: piece]; // no overlap
+                    continue;
+                }
+                if ([c[0] compare: piece[0]] == NSOrderedDescending) [next addObject: @[piece[0], c[0]]];
+                if ([c[1] compare: piece[1]] == NSOrderedAscending) [next addObject: @[c[1], piece[1]]];
+            }
+            pieces = next;
         }
-        if (addsRestriction && [self windowMinutesForSchedule: newSchedule] > SCPasswordlessMaxMinutes) {
-            why = [NSString stringWithFormat: @"adds a block window longer than %ld minutes", (long)SCPasswordlessMaxMinutes];
-            break;
+        [result addObjectsFromArray: pieces];
+    }
+    return result;
+}
+
+// earliest moment of `windows` within [from, to), ignoring slivers under a second; nil if none
+static NSDate* SCFirstMomentInWindows(NSArray<NSArray<NSDate*>*>* windows, NSDate* from, NSDate* to) {
+    NSDate* first = nil;
+    for (NSArray<NSDate*>* window in windows) {
+        NSDate* start = [window[0] laterDate: from];
+        NSDate* end = [window[1] earlierDate: to];
+        if ([end timeIntervalSinceDate: start] < 1) continue;
+        if (first == nil || [start compare: first] == NSOrderedAscending) first = start;
+    }
+    return first;
+}
+
+// far enough ahead that comparing two schedules' windows up to here covers every difference between them:
+// past their last specific date (one-off date or skip date), recurring windows just repeat weekly
++ (NSDate*)comparisonHorizonForSchedules:(NSArray<NSDictionary*>*)schedules atDate:(NSDate*)date {
+    NSDate* latest = date;
+    for (NSDictionary* schedule in schedules) {
+        NSMutableArray* days = [[self skipDatesForSchedule: schedule] mutableCopy];
+        if ([self isOneOffSchedule: schedule]) [days addObject: schedule[SCScheduleKeyDate]];
+        for (NSString* day in days) {
+            NSDate* d = [self dateForDateString: day];
+            if (d != nil) latest = [latest laterDate: d];
         }
     }
-    if (why == nil) {
-        for (NSDictionary* oldSchedule in oldSchedules) {
-            if (![oldSchedule isKindOfClass: [NSDictionary class]]) continue;
-            if ([self scheduleWithID: oldSchedule[SCScheduleKeyID] inSchedules: newSchedules] == nil
-                && ![self oneOffScheduleIsExpired: oldSchedule atDate: date]) {
-                why = @"removes a schedule";
+    return [[self calendar] dateByAddingUnit: NSCalendarUnitDay value: 9 toDate: latest options: 0];
+}
+
++ (BOOL)changeIsPasswordlessFromSchedules:(NSArray*)oldSchedules toSchedules:(NSArray*)newSchedules atDate:(NSDate*)date reason:(NSString**)reason {
+    NSString* why = nil;
+    NSDate* noticeEnd = [date dateByAddingTimeInterval: SCScheduleChangeNoticeMinutes * 60];
+
+    NSMutableOrderedSet<NSString*>* ids = [NSMutableOrderedSet orderedSet];
+    for (NSArray* list in @[oldSchedules ?: @[], newSchedules ?: @[]]) {
+        for (NSDictionary* schedule in list) {
+            if ([schedule isKindOfClass: [NSDictionary class]] && [schedule[SCScheduleKeyID] isKindOfClass: [NSString class]]) {
+                [ids addObject: schedule[SCScheduleKeyID]];
+            }
+        }
+    }
+
+    for (NSString* scheduleID in ids) {
+        // only enabled, unfinished schedules restrict anything
+        NSDictionary* oldSchedule = [self scheduleWithID: scheduleID inSchedules: oldSchedules];
+        NSDictionary* newSchedule = [self scheduleWithID: scheduleID inSchedules: newSchedules];
+        if (oldSchedule != nil && (![oldSchedule[SCScheduleKeyEnabled] boolValue] || [self oneOffScheduleIsExpired: oldSchedule atDate: date])) oldSchedule = nil;
+        if (newSchedule != nil && ![newSchedule[SCScheduleKeyEnabled] boolValue]) newSchedule = nil;
+        if (oldSchedule == nil && newSchedule == nil) continue;
+
+        NSSet* oldSites = [NSSet setWithArray: oldSchedule[SCScheduleKeyBlocklist] ?: @[]];
+        NSSet* newSites = [NSSet setWithArray: newSchedule[SCScheduleKeyBlocklist] ?: @[]];
+        BOOL bothExist = oldSchedule != nil && newSchedule != nil;
+        BOOL settingsChanged = bothExist
+            && !((newSchedule[SCScheduleKeyBlockSettings] == nil && oldSchedule[SCScheduleKeyBlockSettings] == nil)
+                 || [newSchedule[SCScheduleKeyBlockSettings] isEqual: oldSchedule[SCScheduleKeyBlockSettings]]);
+        BOOL sitesRemoved = bothExist && ![oldSites isSubsetOfSet: newSites];
+        BOOL sitesAdded = bothExist && ![newSites isSubsetOfSet: oldSites];
+
+        // loosening: whatever restriction goes away must be at least the notice period out
+        if (oldSchedule != nil) {
+            NSArray* lost = [self windowsForSchedule: oldSchedule overlappingFrom: date to: noticeEnd];
+            if (newSchedule != nil && !sitesRemoved && !settingsChanged) {
+                lost = SCSubtractWindows(lost, [self windowsForSchedule: newSchedule overlappingFrom: date to: noticeEnd]);
+            }
+            NSDate* firstLost = SCFirstMomentInWindows(lost, date, noticeEnd);
+            if (firstLost != nil) {
+                NSString* name = [self displayNameForSchedule: oldSchedule];
+                if ([firstLost timeIntervalSinceDate: date] < 1) {
+                    why = [NSString stringWithFormat: @"loosens \"%@\" while it's active", name];
+                } else {
+                    NSDateFormatter* formatter = [NSDateFormatter new];
+                    formatter.dateFormat = @"EEE h:mm a";
+                    why = [NSString stringWithFormat: @"loosens \"%@\" at %@, less than %ld hours from now",
+                           name, [formatter stringFromDate: firstLost], (long)(SCScheduleChangeNoticeMinutes / 60)];
+                }
+                break;
+            }
+        }
+
+        // tightening: anything that adds restriction must use short windows
+        if (newSchedule != nil && [self windowMinutesForSchedule: newSchedule] > SCPasswordlessMaxMinutes) {
+            BOOL addsRestriction = YES;
+            if (bothExist && !sitesAdded && !settingsChanged) {
+                NSDate* horizon = [self comparisonHorizonForSchedules: @[oldSchedule, newSchedule] atDate: date];
+                NSArray* gained = SCSubtractWindows([self windowsForSchedule: newSchedule overlappingFrom: date to: horizon],
+                                                    [self windowsForSchedule: oldSchedule overlappingFrom: date to: horizon]);
+                addsRestriction = SCFirstMomentInWindows(gained, date, horizon) != nil;
+            }
+            if (addsRestriction) {
+                why = [NSString stringWithFormat: @"adds a block window longer than %ld minutes", (long)SCPasswordlessMaxMinutes];
                 break;
             }
         }
@@ -323,36 +471,54 @@ static NSInteger const kMinutesPerDay = 24 * 60;
     return why == nil;
 }
 
-+ (NSDate*)activeWindowEndForSchedule:(NSDictionary*)schedule atDate:(NSDate*)date {
-    if (![schedule[SCScheduleKeyEnabled] boolValue]) return nil;
++ (NSArray<NSArray<NSDate*>*>*)windowsForSchedule:(NSDictionary*)schedule overlappingFrom:(NSDate*)from to:(NSDate*)to {
+    NSMutableArray* windows = [NSMutableArray array];
+    if (![schedule[SCScheduleKeyEnabled] boolValue] || [from compare: to] != NSOrderedAscending) return windows;
+
     if ([self isOneOffSchedule: schedule]) {
         NSDate *start, *end;
-        if (![self oneOffWindowForSchedule: schedule start: &start end: &end]) return nil;
-        BOOL inWindow = [date compare: start] != NSOrderedAscending && [date compare: end] == NSOrderedAscending;
-        return inWindow ? end : nil;
+        if ([self oneOffWindowForSchedule: schedule start: &start end: &end]
+            && [end compare: from] == NSOrderedDescending && [start compare: to] == NSOrderedAscending) {
+            [windows addObject: @[start, end]];
+        }
+        return windows;
     }
+
     NSSet* weekdays = [NSSet setWithArray: [self normalizedWeekdays: schedule[SCScheduleKeyWeekdays]]];
     NSInteger startMinute = [schedule[SCScheduleKeyStartMinute] integerValue];
     NSInteger endMinute = [schedule[SCScheduleKeyEndMinute] integerValue];
-    if (weekdays.count == 0 || startMinute == endMinute) return nil;
+    if (weekdays.count == 0 || startMinute == endMinute) return windows;
     BOOL overnight = endMinute <= startMinute;
+    NSSet* skipDates = [NSSet setWithArray: [self skipDatesForSchedule: schedule]];
 
     NSCalendar* cal = [self calendar];
-    NSDate* latestEnd = nil;
-    // a window that started yesterday can still be running today if it crosses midnight
-    for (NSInteger offset = overnight ? -1 : 0; offset <= 0; offset++) {
-        NSDate* windowStart = [self dateOnDay: date dayOffset: offset minute: startMinute calendar: cal];
-        NSInteger weekday = [cal component: NSCalendarUnitWeekday fromDate: windowStart];
-        if (![weekdays containsObject: @(weekday)]) continue;
+    NSInteger days = [cal components: NSCalendarUnitDay fromDate: [cal startOfDayForDate: from] toDate: [cal startOfDayForDate: to] options: 0].day;
+    // start a day early: yesterday's window can still be running if it crosses midnight
+    for (NSInteger offset = -1; offset <= days; offset++) {
+        NSDate* windowStart = [self dateOnDay: from dayOffset: offset minute: startMinute calendar: cal];
+        if ([windowStart compare: to] != NSOrderedAscending) break;
+        if (![weekdays containsObject: @([cal component: NSCalendarUnitWeekday fromDate: windowStart])]) continue;
+        NSDate* windowEnd = [self dateOnDay: from dayOffset: offset + (overnight ? 1 : 0) minute: endMinute calendar: cal];
+        if ([windowEnd compare: from] != NSOrderedDescending) continue;
+        if (skipDates.count > 0 && [skipDates containsObject: [self dateStringForDate: windowStart]]) continue;
+        [windows addObject: @[windowStart, windowEnd]];
+    }
+    return windows;
+}
 
-        NSDate* windowEnd = [self dateOnDay: date dayOffset: offset + (overnight ? 1 : 0) minute: endMinute calendar: cal];
-        if ([date compare: windowStart] != NSOrderedAscending && [date compare: windowEnd] == NSOrderedAscending) {
-            if (latestEnd == nil || [windowEnd compare: latestEnd] == NSOrderedDescending) {
-                latestEnd = windowEnd;
-            }
-        }
++ (NSDate*)activeWindowEndForSchedule:(NSDictionary*)schedule atDate:(NSDate*)date {
+    NSDate* latestEnd = nil;
+    for (NSArray<NSDate*>* window in [self windowsForSchedule: schedule overlappingFrom: date to: [date dateByAddingTimeInterval: 0.001]]) {
+        if ([date compare: window[0]] == NSOrderedAscending) continue;
+        latestEnd = latestEnd ? [latestEnd laterDate: window[1]] : window[1];
     }
     return latestEnd;
+}
+
++ (NSDate*)lockDateForSchedule:(NSDictionary*)schedule atDate:(NSDate*)date {
+    if ([self activeWindowEndForSchedule: schedule atDate: date] != nil) return date;
+    NSDate* next = [self nextWindowStartForSchedule: schedule afterDate: date];
+    return [next dateByAddingTimeInterval: -SCScheduleChangeNoticeMinutes * 60];
 }
 
 + (BOOL)scheduleIsActive:(NSDictionary*)schedule atDate:(NSDate*)date {
@@ -376,17 +542,16 @@ static NSInteger const kMinutesPerDay = 24 * 60;
         if (![self oneOffWindowForSchedule: schedule start: &start end: &end]) return nil;
         return [start compare: date] == NSOrderedDescending ? start : nil;
     }
-    NSSet* weekdays = [NSSet setWithArray: [self normalizedWeekdays: schedule[SCScheduleKeyWeekdays]]];
-    if (weekdays.count == 0) return nil;
-    NSInteger startMinute = [schedule[SCScheduleKeyStartMinute] integerValue];
-
+    // look a week or so at a time; skipped days can push the next window out further
     NSCalendar* cal = [self calendar];
-    for (NSInteger offset = 0; offset <= 7; offset++) {
-        NSDate* windowStart = [self dateOnDay: date dayOffset: offset minute: startMinute calendar: cal];
-        NSInteger weekday = [cal component: NSCalendarUnitWeekday fromDate: windowStart];
-        if ([weekdays containsObject: @(weekday)] && [windowStart compare: date] == NSOrderedDescending) {
-            return windowStart;
+    NSDate* from = date;
+    for (NSUInteger chunk = 0; chunk < 60; chunk++) {
+        NSDate* to = [cal dateByAddingUnit: NSCalendarUnitDay value: 8 toDate: from options: 0];
+        for (NSArray<NSDate*>* window in [self windowsForSchedule: schedule overlappingFrom: from to: to]) {
+            if ([window[0] compare: date] == NSOrderedDescending) return window[0];
         }
+        if ([self skipDatesForSchedule: schedule].count == 0) return nil;
+        from = to;
     }
     return nil;
 }
@@ -474,6 +639,22 @@ static NSInteger const kMinutesPerDay = 24 * 60;
     NSString* name = schedule[SCScheduleKeyName];
     if ([name isKindOfClass: [NSString class]] && name.length > 0) return name;
     return [NSString stringWithFormat: @"%@ %@", [self daysDescriptionForSchedule: schedule], [self timeDescriptionForSchedule: schedule]];
+}
+
++ (NSString*)skipDescriptionForSchedule:(NSDictionary*)schedule {
+    NSArray<NSString*>* skipDates = [self skipDatesForSchedule: schedule];
+    if (skipDates.count == 0) return @"";
+    NSDateFormatter* formatter = [NSDateFormatter new];
+    formatter.dateFormat = @"EEE, MMM d";
+    NSMutableArray* names = [NSMutableArray array];
+    for (NSString* day in skipDates) {
+        NSDate* date = [self dateForDateString: day];
+        [names addObject: date ? [formatter stringFromDate: date] : day];
+    }
+    if (names.count == 1) return [NSString stringWithFormat: @"skips %@", names[0]];
+    NSString* last = names.lastObject;
+    [names removeLastObject];
+    return [NSString stringWithFormat: @"skips %@ and %@", [names componentsJoinedByString: @", "], last];
 }
 
 #pragma mark - Parsing

@@ -441,20 +441,20 @@ NSTimeInterval CHECKUP_LOCK_TIMEOUT = 0.5; // use a shorter lock timeout for che
     if (![schedules isKindOfClass: [NSArray class]] || schedules.count == 0) return;
 
     NSDate* now = [NSDate date];
-    BOOL hasExpiredOneOffs = [SCScheduleUtilities schedulesByRemovingExpiredOneOffs: schedules atDate: now].count != schedules.count;
+    BOOL needsPruning = ![[SCScheduleUtilities schedulesByPruningExpired: schedules atDate: now] isEqualToArray: schedules];
     NSArray<NSDictionary*>* activeSchedules = [SCScheduleUtilities activeSchedules: schedules atDate: now];
-    if (activeSchedules.count == 0 && !hasExpiredOneOffs) return;
+    if (activeSchedules.count == 0 && !needsPruning) return;
 
     if (![SCDaemonBlockMethods lockOrTimeout: nil timeout: METHOD_LOCK_TIMEOUT]) {
         return;
     }
     [[SCDaemon sharedDaemon] resetInactivityTimer];
 
-    // one-off schedules are deleted once their window has passed
+    // one-off schedules are deleted once their window has passed, and old skipped days are forgotten
     schedules = [settings valueForKey: @"Schedules"];
-    NSArray* prunedSchedules = [SCScheduleUtilities schedulesByRemovingExpiredOneOffs: schedules atDate: now];
-    if (prunedSchedules.count != schedules.count) {
-        NSLog(@"INFO: Removing %lu finished one-off schedule(s)", (unsigned long)(schedules.count - prunedSchedules.count));
+    NSArray* prunedSchedules = [SCScheduleUtilities schedulesByPruningExpired: schedules atDate: now];
+    if (![prunedSchedules isEqualToArray: schedules]) {
+        NSLog(@"INFO: Removing %lu finished one-off schedule(s) and old skipped days", (unsigned long)(schedules.count - prunedSchedules.count));
         [settings setValue: prunedSchedules forKey: @"Schedules"];
         NSError* syncErr = [settings syncSettingsAndWait: 5];
         if (syncErr != nil) {

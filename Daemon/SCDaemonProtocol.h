@@ -22,7 +22,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 // XPC method to replace the recurring block schedules (see SCScheduleUtilities.h).
 // Rejected if it would remove, disable or weaken a schedule whose window is active right now.
-- (void)updateSchedules:(NSArray<NSDictionary*>*)schedules authorization:(NSData *)authData reply:(void(^)(NSError* error))reply;
+// With passwordlessOnly, a change that would need the admin password is rejected (code 32) instead of prompting.
+- (void)updateSchedules:(NSArray<NSDictionary*>*)schedules passwordlessOnly:(BOOL)passwordlessOnly authorization:(NSData *)authData reply:(void(^)(NSError* error))reply;
 
 // XPC method to get version of the installed daemon
 - (void)getVersionWithReply:(void(^)(NSString * version))reply;

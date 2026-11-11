@@ -371,6 +371,10 @@
 }
 
 - (void)updateSchedules:(NSArray<NSDictionary*>*)schedules reply:(void(^)(NSError* error))reply {
+    [self updateSchedules: schedules passwordlessOnly: NO reply: reply];
+}
+
+- (void)updateSchedules:(NSArray<NSDictionary*>*)schedules passwordlessOnly:(BOOL)passwordlessOnly reply:(void(^)(NSError* error))reply {
     [self connectAndExecuteCommandBlock:^(NSError * connectError) {
         if (connectError != nil) {
             NSLog(@"Schedule update failed with connection error: %@", connectError);
@@ -379,7 +383,7 @@
             [[self.daemonConnection remoteObjectProxyWithErrorHandler:^(NSError * proxyError) {
                 NSLog(@"Schedule update command failed with remote object proxy error: %@", proxyError);
                 reply(proxyError);
-            }] updateSchedules: schedules authorization: self.authorization reply:^(NSError* error) {
+            }] updateSchedules: schedules passwordlessOnly: passwordlessOnly authorization: self.authorization reply:^(NSError* error) {
                 if (error != nil && ![SCMiscUtilities errorIsAuthCanceled: error]) {
                     NSLog(@"Schedule update failed with error = %@\n", error);
                 }

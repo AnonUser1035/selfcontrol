@@ -77,17 +77,25 @@ static NSTimeInterval SCPasswordlessMaxSeconds(void) { return SCPasswordlessMaxM
     [SCDaemonBlockMethods updateBlockEndDate: newEndDate authorization: authData reply: reply];
 }
 
-- (void)updateSchedules:(NSArray<NSDictionary*>*)schedules authorization:(NSData *)authData reply:(void(^)(NSError* error))reply {
+- (void)updateSchedules:(NSArray<NSDictionary*>*)schedules passwordlessOnly:(BOOL)passwordlessOnly authorization:(NSData *)authData reply:(void(^)(NSError* error))reply {
     NSLog(@"XPC method called: updateSchedules");
 
     NSDate* now = [NSDate date];
-    NSArray* newSchedules = [SCScheduleUtilities schedulesByRemovingExpiredOneOffs: schedules atDate: now];
+    NSArray* newSchedules = [SCScheduleUtilities schedulesByPruningExpired: schedules atDate: now];
     NSString* passwordReason = nil;
     BOOL passwordless = [SCScheduleUtilities changeIsPasswordlessFromSchedules: [[SCSettings sharedSettings] valueForKey: @"Schedules"]
                                                                    toSchedules: newSchedules
                                                                         atDate: now
                                                                         reason: &passwordReason];
-    if (!passwordless) NSLog(@"INFO: schedule change needs the admin password because it %@", passwordReason);
+    if (!passwordless) {
+        NSLog(@"INFO: schedule change needs the admin password because it %@", passwordReason);
+        if (passwordlessOnly) {
+            reply([NSError errorWithDomain: SCScheduleErrorDomain code: 32 userInfo: @{
+                NSLocalizedDescriptionKey: [NSString stringWithFormat: @"This needs your admin password because it %@.", passwordReason]
+            }]);
+            return;
+        }
+    }
     NSString* right = passwordless ? SCAuthRightTightenSchedules : [SCXPCAuthorization authorizationRightForCommand: _cmd];
     NSError* error = [SCXPCAuthorization checkAuthorization: authData rightName: right];
     if (error != nil) {
